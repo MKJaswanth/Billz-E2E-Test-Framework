@@ -1,0 +1,20 @@
+BASE_URL = "https://dev-demo-ccl.devccl-billzweb.crystalbillz.com"
+ADMIN_EMAIL = "admin@crystalcodelabs.com"
+ADMIN_PASSWORD = "Str0ngP@ssw0rd!"
+
+DASHBOARD_URL = "https://dev-demo-ccl.devccl-billzweb.crystalbillz.com/dashboard"
+CITY_URL = "https://dev-demo-ccl.devccl-billzweb.crystalbillz.com/cities"
+BRANCHES_URL = "https://dev-demo-ccl.devccl-billzweb.crystalbillz.com/branches"
+ROLES_URL = "https://dev-demo-ccl.devccl-billzweb.crystalbillz.com/roles"
+USERS_URL = "https://dev-demo-ccl.devccl-billzweb.crystalbillz.com/users"
+
+CATEGORIES_URL = "https://dev-demo-ccl.devccl-billzweb.crystalbillz.com/categories"
+BRANDS_URL = "https://dev-demo-ccl.devccl-billzweb.crystalbillz.com/brands"
+UNIT_TYPES_URL = "https://dev-demo-ccl.devccl-billzweb.crystalbillz.com/unit-types"
+ATTRIBUTE_KEYS_URL = "https://dev-demo-ccl.devccl-billzweb.crystalbillz.com/attribute-keys"
+ATTRIBUTE_VALUES_URL = "https://dev-demo-ccl.devccl-billzweb.crystalbillz.com/attribute-values"
+PRODUCT_ATTRIBUTES_URL = "https://dev-demo-ccl.devccl-billzweb.crystalbillz.com/product-unit-attributes"
+BANK_ACCOUNTS_URL = "https://dev-demo-ccl.devccl-billzweb.crystalbillz.com/bank-accounts"
+ENQUIRY_STAGE_WORKFLOWS_URL = "https://dev-demo-ccl.devccl-billzweb.crystalbillz.com/enquiry-stage-workflows"
+ACCOUNT_GROUPS_URL = "https://dev-demo-ccl.devccl-billzweb.crystalbillz.com/account-groups"
+  
