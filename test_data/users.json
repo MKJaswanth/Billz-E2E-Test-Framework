@@ -1,6 +1,6 @@
 {
   "admin": {
-    "email": "admin@crystalcodelabs.com",
-    "password": "Str0ngP@ssw0rd!"
+    "email": "admin@example.com",
+    "password": "generic_password_placeholder"
   }
 }

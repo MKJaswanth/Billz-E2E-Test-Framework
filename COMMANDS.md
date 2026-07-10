@@ -31,7 +31,7 @@ on the dashboard — no manual login. Defaults to the admin creds in
 Pass different credentials inline:
 
 ```bash
-python codegen.py --email admin@crystalcodelabs.com --password "Str0ngP@ssw0rd!"
+python codegen.py --email user@example.com --password "YourPasswordHere"
 ```
 
 Record on a different page:

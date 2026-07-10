@@ -1,0 +1,17 @@
+# Python pycache and compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.pytest_cache*
+
+# Credentials & Session files
+.env
+auth_state.json
+
+# Test reports, logs and media
+*.png
+*.webp
+reports/
+results.xml
