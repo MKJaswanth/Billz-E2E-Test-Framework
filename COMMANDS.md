@@ -5,7 +5,7 @@
 ### Codegen — record locators / generate code
 
 ```bash
-playwright codegen https://dev-demo-ccl.devccl-billzweb.crystalbillz.com
+playwright codegen https://testing001.devccl-billzweb.crystalbillz.com
 ```
 
 Opens a browser + code panel. Click elements to get their locators automatically.
@@ -37,7 +37,7 @@ python codegen.py --email user@example.com --password "YourPasswordHere"
 Record on a different page:
 
 ```bash
-python codegen.py --url https://dev-demo-ccl.devccl-billzweb.crystalbillz.com/cities
+python codegen.py --url https://testing001.devccl-billzweb.crystalbillz.com/cities
 ```
 
 ### Codegen — save login session manually
@@ -45,7 +45,7 @@ python codegen.py --url https://dev-demo-ccl.devccl-billzweb.crystalbillz.com/ci
 Login in the browser yourself, then save the session to `auth.json`:
 
 ```bash
-python -m playwright codegen https://dev-demo-ccl.devccl-billzweb.crystalbillz.com/login --save-storage=auth.json
+python -m playwright codegen https://testing001.devccl-billzweb.crystalbillz.com/login --save-storage=auth.json
 ```
 
 ### Codegen — load saved session and record on dashboard
@@ -53,7 +53,7 @@ python -m playwright codegen https://dev-demo-ccl.devccl-billzweb.crystalbillz.c
 Use the saved `auth.json` to open codegen already logged in:
 
 ```bash
-python -m playwright codegen https://dev-demo-ccl.devccl-billzweb.crystalbillz.com/dashboard --load-storage=auth.json
+python -m playwright codegen https://testing001.devccl-billzweb.crystalbillz.com/dashboard --load-storage=auth.json
 ```
 
 ---
