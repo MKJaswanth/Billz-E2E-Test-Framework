@@ -1,4 +1,5 @@
 from utils.constants import BANK_ACCOUNTS_URL
+from pages.common.form_page import has_validation_feedback
 
 class BankAccountPage:
     def __init__(self, page):
@@ -23,6 +24,7 @@ class BankAccountPage:
         modal.locator("input[name=\"ifsc_code\"]").fill(ifsc_code)
         
         modal.get_by_role("button", name="Create").click()
+        modal.wait_for(state="hidden", timeout=5000)
 
     def search_bank_account(self, bank_name):
         search_box = self.page.get_by_role("textbox", name="Search...")
@@ -133,3 +135,31 @@ class BankAccountPage:
             
         self.navigate()
         return is_valid
+
+    def validate_invalid_format(self, field, value):
+        self.page.get_by_role("button", name="Add Bank Account").click()
+        modal = self.page.get_by_role("dialog")
+        modal.wait_for(state="visible", timeout=5000)
+
+        values = {
+            "bank_name": "Automation Validation Bank",
+            "branch": "Automation Branch",
+            "account_number": "123456789012",
+            "ifsc_code": "IDFC0000899",
+        }
+        values[field] = value
+        for name, field_value in values.items():
+            modal.locator(f'input[name="{name}"]').fill(field_value)
+        modal.get_by_role("button", name="Create").click()
+
+        patterns = {
+            "account_number": (
+                r"account.*(?:invalid|valid|digits|number|length)",
+                r"invalid.*account",
+            ),
+            "ifsc_code": (
+                r"ifsc.*(?:invalid|valid|format|characters)",
+                r"invalid.*ifsc",
+            ),
+        }
+        return has_validation_feedback(self.page, *patterns[field])
