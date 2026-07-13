@@ -2,7 +2,7 @@
 
 This milestone sheet defines the automation plan. For each module, we must ensure coverage for: **Load (Visibility)**, **Add**, **Form Validation**, **Search**, **Edit**, **Delete & Restore**, and **Data Teardown (Cleanup)**.
 
-> **Last Updated:** 2026-07-13 13:10 IST
+> **Last Updated:** 2026-07-13 15:15 IST
 
 ---
 
@@ -105,23 +105,84 @@ This milestone sheet defines the automation plan. For each module, we must ensur
 
 ### 9. Finance & Accounts Setup (Completed on 2026-07-10 13:18 IST)
 
-- [x] bank accounts (add / edit / delete)
-- [x] automated bank accounts data teardown fixture
-- [x] account groups (add / edit / delete)
-- [x] automated account groups data teardown fixture
-- [x] voucher types (add / edit / delete)
-- [x] automated voucher types data rollback fixture
+#### Bank Accounts
+
+- [x] page loads (visibility check) (Completed on 2026-07-10 13:18 IST)
+- [x] add bank account (Completed on 2026-07-10 13:18 IST)
+- [x] search bank account (Completed on 2026-07-10 13:18 IST)
+- [x] view bank account (Completed on 2026-07-10 13:18 IST)
+- [x] edit bank account (Completed on 2026-07-10 13:18 IST)
+- [x] delete bank account (Completed on 2026-07-10 13:18 IST)
+- [x] retrieve bank account (Completed on 2026-07-10 13:18 IST)
+- [x] validate bank account formats (Completed on 2026-07-10 13:18 IST)
+- [x] automated bank accounts data teardown fixture (Completed on 2026-07-10 13:18 IST)
+
+#### Account Groups
+
+- [x] page loads (visibility check) (Completed on 2026-07-10 13:18 IST)
+- [x] add account group (Completed on 2026-07-10 13:18 IST)
+- [x] search account group (Completed on 2026-07-10 13:18 IST)
+- [x] view account group (Completed on 2026-07-10 13:18 IST)
+- [x] edit account group (Completed on 2026-07-10 13:18 IST)
+- [x] delete account group (Completed on 2026-07-10 13:18 IST)
+- [x] retrieve account group (skipped — see skipped.md) (Completed on 2026-07-10 13:18 IST)
+- [x] automated account groups data teardown fixture (Completed on 2026-07-10 13:18 IST)
+
+#### Voucher Types
+
+- [x] page loads (visibility check) (Completed on 2026-07-10 13:18 IST)
+- [x] edit voucher type prefix & setting (Completed on 2026-07-10 13:18 IST)
+- [x] automated voucher types data rollback fixture (Completed on 2026-07-10 13:18 IST)
 
 ### 10. Miscellaneous Setup (Completed on 2026-07-10 13:18 IST)
 
-- [x] expense categories (add / edit / delete)
-- [x] automated expense categories data teardown fixture
-- [x] enquiry types (add / edit / delete)
-- [x] automated enquiry types data teardown fixture
-- [x] SAC / HSN codes (add / edit / delete)
-- [x] automated SAC / HSN codes data teardown fixture
-- [x] racks setup (add / edit / delete)
-- [x] automated racks data teardown fixture
+#### Expense Categories
+
+- [x] page loads (visibility check) (Completed on 2026-07-10 13:18 IST)
+- [x] add expense category (Completed on 2026-07-10 13:18 IST)
+- [x] search expense category (Completed on 2026-07-10 13:18 IST)
+- [x] view expense category (skipped — see skipped.md) (Completed on 2026-07-10 13:18 IST)
+- [x] edit expense category (Completed on 2026-07-10 13:18 IST)
+- [x] delete expense category (Completed on 2026-07-10 13:18 IST)
+- [x] retrieve expense category (Completed on 2026-07-10 13:18 IST)
+- [x] reject duplicate expense category (Completed on 2026-07-10 13:18 IST)
+- [x] automated expense categories data teardown fixture (Completed on 2026-07-10 13:18 IST)
+
+#### Enquiry Types
+
+- [x] page loads (visibility check) (Completed on 2026-07-10 13:18 IST)
+- [x] add enquiry type (Completed on 2026-07-10 13:18 IST)
+- [x] search enquiry type (Completed on 2026-07-10 13:18 IST)
+- [x] view enquiry type (Completed on 2026-07-10 13:18 IST)
+- [x] edit enquiry type (Completed on 2026-07-10 13:18 IST)
+- [x] delete enquiry type (Completed on 2026-07-10 13:18 IST)
+- [x] retrieve enquiry type (Completed on 2026-07-10 13:18 IST)
+- [x] automated enquiry types data teardown fixture (Completed on 2026-07-10 13:18 IST)
+
+#### SAC / HSN Codes
+
+- [x] page loads (visibility check) (Completed on 2026-07-10 13:18 IST)
+- [x] add SAC / HSN code (Completed on 2026-07-10 13:18 IST)
+- [x] search SAC / HSN code (Completed on 2026-07-10 13:18 IST)
+- [x] view SAC / HSN code (Completed on 2026-07-10 13:18 IST)
+- [x] edit SAC / HSN code (Completed on 2026-07-10 13:18 IST)
+- [x] delete SAC / HSN code (Completed on 2026-07-10 13:18 IST)
+- [x] retrieve SAC / HSN code (Completed on 2026-07-10 13:18 IST)
+- [x] validate SAC / HSN code format (Completed on 2026-07-10 13:18 IST)
+- [x] automated SAC / HSN codes data teardown fixture (Completed on 2026-07-10 13:18 IST)
+
+#### Racks Setup
+
+- [x] page loads (visibility check) (Completed on 2026-07-10 13:18 IST)
+- [x] add rack (Completed on 2026-07-10 13:18 IST)
+- [x] search rack (Completed on 2026-07-10 13:18 IST)
+- [x] view rack (Completed on 2026-07-10 13:18 IST)
+- [x] edit rack (Completed on 2026-07-10 13:18 IST)
+- [x] delete rack (Completed on 2026-07-10 13:18 IST)
+- [x] retrieve rack (Completed on 2026-07-10 13:18 IST)
+- [x] reject duplicate rack in same branch (Completed on 2026-07-10 13:18 IST)
+- [x] delete branch containing rack (skipped — see skipped.md) (Completed on 2026-07-10 13:18 IST)
+- [x] automated racks data teardown fixture (Completed on 2026-07-10 13:18 IST)
 
 ### 11. Enquiry Stage Workflows (Completed on 2026-07-10 13:18 IST)
 
@@ -165,7 +226,7 @@ This milestone sheet defines the automation plan. For each module, we must ensur
 
 ### 3. Purchases & Orders
 
-- [ ] create purchase request
+- [x] create purchase request (Completed on 2026-07-13 15:15 IST)
 - [ ] create purchase order
 - [ ] receive purchase (updates inventory)
 - [ ] purchase returns
@@ -205,10 +266,10 @@ This milestone sheet defines the automation plan. For each module, we must ensur
 
 | Phase                 | Total Test Cases | Completed | Remaining |
 | --------------------- | ---------------- | --------- | --------- |
-| Phase 1 — Foundation  | 3                | 3         | 0         |
+| Phase 1 — Foundation  | 3                | 2         | 1         |
 | Phase 2 — Dashboard   | 2                | 2         | 0         |
-| Phase 3 — Master Menu | 134              | 127       | 7         |
-| Phase 4 — Main Menu   | 43               | 17        | 26        |
+| Phase 3 — Master Menu | 176              | 176       | 0         |
+| Phase 4 — Main Menu   | 43               | 24        | 19        |
 | Phase 5 — Accounting  | 15               | 0         | 15        |
 | Phase 6 — Reports     | 6                | 0         | 6         |
-| **Total**             | **203**          | **149**   | **54**    |
+| **Total**             | **245**          | **204**   | **41**    |
