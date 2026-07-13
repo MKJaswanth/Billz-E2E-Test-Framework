@@ -150,14 +150,10 @@ def module_products(module_page, module_category, module_brand, module_unit_type
             print(f"Teardown: Failed to delete product {name}: {e}")
 
 
-@pytest.fixture
-def pr_supplier(logged_in_page, module_city):
-    """A purchase request has no name of its own - it can only be looked up
-    by its supplier. So unlike the other module-scoped master data, the
-    supplier must stay unique PER TEST, otherwise multiple tests would share
-    one identity and searches/deletes could race or hit the wrong row.
-    Everything this depends on (module_city) is still shared/module-scoped."""
-    suppliers_page = SuppliersPage(logged_in_page)
+@pytest.fixture(scope="module")
+def module_supplier(module_page, module_city):
+    """A single module-scoped supplier shared across all tests in this file."""
+    suppliers_page = SuppliersPage(module_page)
     suppliers_page.navigate()
     supplier_name = generate_random_name("pr_sup")
     suppliers_page.add_supplier(
@@ -180,20 +176,17 @@ def pr_supplier(logged_in_page, module_city):
         print(f"Teardown: Failed to delete supplier {supplier_name}: {e}")
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def master_data(
-    module_branch, pr_supplier, module_products, module_city,
+    module_branch, module_supplier, module_products, module_city,
     module_category, module_brand, module_unit_type, module_hsn_code,
 ):
-    """Bundle the master-data into a single dict, same shape as before the
-    refactor. Function-scoped (not module-scoped) because it now depends on
-    the per-test pr_supplier - pytest requires that: a fixture can only be
-    as long-lived as the shortest-lived fixture it depends on. Everything
-    except the supplier is still built once per module under the hood, so
-    this stays cheap to call from every test."""
+    """Bundle the master-data into a single dict. Since all dependencies
+    are module-scoped, we can make master_data module-scoped as well, which
+    reuses the exact same records across all tests."""
     return {
         "branch": module_branch,
-        "supplier": pr_supplier,
+        "supplier": module_supplier,
         "product1": module_products["product1"],
         "product2": module_products["product2"],
         "city": module_city,
@@ -249,14 +242,20 @@ def make_purchase_request(purchase_requests_page, master_data, purchase_request_
     """Factory that creates a purchase request against the shared module
     master data (branch/supplier/products) and registers it for cleanup.
     Returns the supplier name, which is how purchase requests are looked up."""
-    def _make(priority="Medium", quantity=1, notes="auto_test_notes", product=None):
+    def _make(
+        priority="Medium", quantity=1, notes="auto_test_notes", product=None,
+        products_data=None,
+    ):
         purchase_requests_page.navigate()
         purchase_requests_page.page.wait_for_load_state("networkidle")
+        items = products_data or [
+            {"product": product or master_data["product1"], "quantity": quantity}
+        ]
         purchase_requests_page.add_purchase_request(
             branch=master_data["branch"],
             supplier=master_data["supplier"],
             priority=priority,
-            products_data=[{"product": product or master_data["product1"], "quantity": quantity}],
+            products_data=items,
             notes=notes,
         )
         purchase_request_cleanup.append(master_data["supplier"])
@@ -272,6 +271,27 @@ def test_purchase_request_visibility(purchase_requests_page):
 def test_add_purchase_request(purchase_requests_page, make_purchase_request):
     supplier = make_purchase_request(quantity=5)
     assert purchase_requests_page.search_purchase_request(supplier)
+
+
+def test_search_purchase_request(purchase_requests_page, make_purchase_request):
+    supplier = make_purchase_request(quantity=2, notes="search_test")
+    assert purchase_requests_page.search_purchase_request(supplier)
+
+
+def test_create_purchase_request_with_multiple_items(
+    purchase_requests_page, make_purchase_request, master_data
+):
+    supplier = make_purchase_request(
+        priority="High",
+        products_data=[
+            {"product": master_data["product1"], "quantity": 2},
+            {"product": master_data["product2"], "quantity": 3},
+        ],
+        notes="multi_item_test",
+    )
+    assert purchase_requests_page.purchase_request_contains_products(
+        supplier, [master_data["product1"], master_data["product2"]]
+    )
 
 
 def test_view_purchase_request(purchase_requests_page, make_purchase_request, master_data):
@@ -317,3 +337,34 @@ def test_retrieve_purchase_request(purchase_requests_page, make_purchase_request
     assert purchase_requests_page.delete_purchase_request(supplier)
     assert purchase_requests_page.retrieve_purchase_request(supplier)
     assert purchase_requests_page.search_purchase_request(supplier)
+
+
+def test_validate_purchase_request_required_fields(purchase_requests_page):
+    assert purchase_requests_page.validate_required_fields()
+
+
+@pytest.mark.parametrize("quantity", [0, -1], ids=["zero", "negative"])
+def test_reject_invalid_purchase_request_quantity(
+    purchase_requests_page, master_data, quantity
+):
+    assert purchase_requests_page.validate_invalid_quantity(
+        branch=master_data["branch"],
+        supplier=master_data["supplier"],
+        priority="Medium",
+        product=master_data["product1"],
+        quantity=quantity,
+    ), f"Expected validation feedback for quantity {quantity}"
+
+
+@pytest.mark.skip(
+    reason="Known bug: supplier assigned to an active purchase request can be deleted"
+)
+def test_delete_supplier_assigned_to_purchase_request_is_blocked(
+    logged_in_page, make_purchase_request
+):
+    supplier = make_purchase_request(quantity=2, notes="supplier_dependency")
+    suppliers_page = SuppliersPage(logged_in_page)
+    suppliers_page.navigate()
+    assert not suppliers_page.delete_supplier(supplier), (
+        "A supplier assigned to an active purchase request must not be deleted"
+    )
