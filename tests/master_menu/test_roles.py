@@ -29,7 +29,7 @@ def test_add_roles(logged_in_page, role_cleanup):
     
     role_name = roles_page.add_roles()
     role_cleanup.append(role_name)
-    assert logged_in_page.get_by_text(role_name, exact=True).is_visible
+    assert logged_in_page.get_by_text(role_name, exact=True).is_visible()
     assert logged_in_page.get_by_text("Role created successfully").is_visible()
     
 def test_search_roles(logged_in_page, role_cleanup):

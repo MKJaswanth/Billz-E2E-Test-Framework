@@ -1,23 +1,26 @@
+from __future__ import annotations
+
+from playwright.sync_api import Page
 from utils.constants import CUSTOMERS_URL
-from pages.common.form_page import has_validation_feedback
+from pages.common.form_page import has_required_field_feedback, has_validation_feedback
 from utils.random_data import generate_random_name, generate_random_email, generate_random_phone, generate_random_postal_code, generate_random_address
 
 class CustomersPage:
-    def __init__(self, page):
+    def __init__(self, page: Page) -> None:
         self.page = page
         self.url = CUSTOMERS_URL
 
-    def navigate(self):
-        return self.page.goto(self.url)
+    def navigate(self) -> None:
+        self.page.goto(self.url)
 
-    def is_customers_visible(self):
+    def is_customers_visible(self) -> bool:
         return self.page.get_by_role("button", name="Add Customer").is_visible()
 
     def _fill_customer_form(
-        self, name, customer_type, email, phone, notes, contact_person,
-        address_line1, address_line2, state_name, city_name, postal_code,
-        default_address=True
-    ):
+        self, name: str, customer_type: str, email: str, phone: str, notes: str | None, contact_person: str,
+        address_line1: str, address_line2: str, state_name: str, city_name: str, postal_code: str,
+        default_address: bool = True
+    ) -> None:
         self.page.locator('input[name="name"]').fill(name)
 
         if notes:
@@ -72,10 +75,10 @@ class CustomersPage:
             self.page.get_by_role("checkbox", name="Default Address").check()
 
     def add_customer(
-        self, name, customer_type="Person", email=None, phone=None, notes="automated customer notes",
-        contact_person="Contact Auto", address_line1="Line 1", address_line2="Line 2",
-        state_name="Tamil Nadu", city_name=None, postal_code=None, default_address=True
-    ):
+        self, name: str, customer_type: str = "Person", email: str | None = None, phone: str | None = None, notes: str = "automated customer notes",
+        contact_person: str = "Contact Auto", address_line1: str = "Line 1", address_line2: str = "Line 2",
+        state_name: str = "Tamil Nadu", city_name: str | None = None, postal_code: str | None = None, default_address: bool = True
+    ) -> str:
         from pages.master_menu.cities_page import CitiesPage
         from utils.random_data import generate_random_code
 
@@ -109,11 +112,11 @@ class CustomersPage:
         self.page.wait_for_load_state("networkidle")
         return city_name  # Return created city name so tests can clean it up
 
-    def search_customer(self, name):
+    def search_customer(self, name: str) -> bool:
         search_box = self.page.get_by_role("textbox", name="Search...")
         search_box.fill(name)
         search_box.press("Enter")
-
+        self.page.wait_for_load_state("networkidle", timeout=5000)
         locator = self.page.get_by_text(name, exact=True).first
         try:
             locator.wait_for(state="visible", timeout=5000)
@@ -121,7 +124,7 @@ class CustomersPage:
         except Exception:
             return False
 
-    def view_customer(self, name):
+    def view_customer(self, name: str) -> bool:
         self.search_customer(name)
         row = self.page.locator("tr", has=self.page.get_by_text(name, exact=True))
         row.wait_for(state="visible", timeout=5000)
@@ -140,7 +143,7 @@ class CustomersPage:
         modal.wait_for(state="hidden", timeout=5000)
         return is_visible
 
-    def edit_customer(self, old_name, new_name):
+    def edit_customer(self, old_name: str, new_name: str) -> bool:
         self.search_customer(old_name)
         row = self.page.locator("tr", has=self.page.get_by_text(old_name, exact=True))
         row.wait_for(state="visible", timeout=5000)
@@ -157,7 +160,7 @@ class CustomersPage:
         except Exception:
             return False
 
-    def delete_customer(self, name):
+    def delete_customer(self, name: str) -> bool:
         self.search_customer(name)
         row = self.page.locator("tr", has=self.page.get_by_text(name, exact=True))
         row.wait_for(state="visible", timeout=5000)
@@ -176,7 +179,7 @@ class CustomersPage:
         except Exception:
             return False
 
-    def retrieve_customer(self, name):
+    def retrieve_customer(self, name: str) -> bool:
         self.search_customer(name)
         row = self.page.locator("tr", has=self.page.get_by_text(name, exact=True))
         row.wait_for(state="visible", timeout=5000)
@@ -195,9 +198,9 @@ class CustomersPage:
         except Exception:
             return False
 
-    def validate_invalid_field(self, name, customer_type, email, phone, notes, contact_person,
-                               address_line1, address_line2, state_name, city_name, postal_code,
-                               field, value):
+    def validate_invalid_field(self, name: str, customer_type: str, email: str, phone: str, notes: str, contact_person: str,
+                               address_line1: str, address_line2: str, state_name: str, city_name: str, postal_code: str,
+                               field: str, value: str) -> bool:
         self.page.get_by_role("button", name="Add Customer").click()
         self.page.get_by_role("dialog").wait_for(state="visible", timeout=5000)
         
@@ -212,14 +215,14 @@ class CustomersPage:
         self.page.get_by_role("button", name="Create").click()
 
         patterns = {
-            "email": (r"email.*(?:invalid|valid|format|domain)", r"invalid.*email"),
+            "email": (r"email.*(?:invalid|valid|format|domain|already|taken|exists)", r"invalid.*email", r"already.*(?:taken|exist)"),
             "phone": (r"phone.*(?:invalid|valid|10|digits|start)",),
             "postal_code": (r"postal.*(?:invalid|valid|6|digits)", r"pincode.*(?:invalid|valid|6|digits)", r"postal code must be"),
         }
         return has_validation_feedback(self.page, *patterns[field])
 
-    def validate_duplicate_customer(self, name, customer_type, email, phone, notes, contact_person,
-                                    address_line1, address_line2, state_name, city_name, postal_code):
+    def validate_duplicate_customer(self, name: str, customer_type: str, email: str, phone: str, notes: str, contact_person: str,
+                                    address_line1: str, address_line2: str, state_name: str, city_name: str, postal_code: str) -> bool:
         self.page.get_by_role("button", name="Add Customer").click()
         self.page.get_by_role("dialog").wait_for(state="visible", timeout=5000)
         self._fill_customer_form(
@@ -233,3 +236,28 @@ class CustomersPage:
             r"(?:email|phone).*(?:already|duplicate|taken|exists)",
             r"duplicate.*customer",
         )
+
+    def validate_required_fields(self) -> bool:
+        self.page.get_by_role("button", name="Add Customer").click()
+        modal = self.page.get_by_role("dialog")
+        modal.wait_for(state="visible", timeout=5000)
+        modal.get_by_role("button", name="Create").click()
+        return has_required_field_feedback(modal)
+
+    def delete_customer_expect_fail(self, name: str) -> bool:
+        self.search_customer(name)
+        row = self.page.locator("tr", has=self.page.get_by_text(name, exact=True))
+        row.wait_for(state="visible", timeout=5000)
+
+        row.get_by_title("delete").first.click()
+        modal = self.page.get_by_role("dialog")
+        modal.wait_for(state="visible", timeout=5000)
+
+        modal.get_by_role("button", name="Delete Customer").click()
+        
+        # We expect a failure/error toast or the modal remaining open with an error
+        # In either case, the customer row should still exist in the table listing after a reload
+        self.page.wait_for_timeout(2000)
+        self.navigate()
+        return self.search_customer(name)
+

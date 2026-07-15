@@ -9,6 +9,8 @@ __pycache__/
 # Credentials & Session files
 .env
 auth_state.json
+auth.json
+.auth/
 
 # Test reports, logs and media
 *.png

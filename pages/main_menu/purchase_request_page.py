@@ -1,21 +1,25 @@
+from __future__ import annotations
+
+from playwright.sync_api import Download, Page
 from utils.constants import PURCHASE_REQUESTS_URL
+from pages.common.form_page import has_required_field_feedback, has_validation_feedback
 
 class PurchaseRequestPage:
-    def __init__(self, page):
+    def __init__(self, page: Page) -> None:
         self.page = page
         self.url = PURCHASE_REQUESTS_URL
 
-    def navigate(self):
-        return self.page.goto(self.url)
+    def navigate(self) -> None:
+        self.page.goto(self.url)
 
-    def is_purchase_requests_visible(self):
+    def is_purchase_requests_visible(self) -> bool:
         try:
             self.page.get_by_role("textbox", name="Search...").wait_for(state="visible", timeout=5000)
             return True
         except Exception:
             return False
 
-    def _select_product_in_row(self, row_idx, product_name):
+    def _select_product_in_row(self, row_idx: int, product_name: str) -> None:
         # Select product in row row_idx (1-based index)
         # Try to locate the react-select container within column 2 of the specified row
         row_locator = self.page.locator(f"tr:nth-child({row_idx}) > td:nth-child(2)")
@@ -28,11 +32,11 @@ class PurchaseRequestPage:
             ).click()
         self.page.get_by_role("option", name=product_name).click()
 
-    def _fill_quantity_in_row(self, row_idx, quantity):
+    def _fill_quantity_in_row(self, row_idx: int, quantity: int | str) -> None:
         # Fill quantity field in row row_idx (1-based index)
         self.page.locator(f"tr:nth-child({row_idx})").get_by_placeholder("Quantity").fill(str(quantity))
 
-    def _fill_purchase_request_form(self, branch, supplier, priority, products_data, notes=None):
+    def _fill_purchase_request_form(self, branch: str, supplier: str, priority: str, products_data: list[dict[str, str | int]], notes: str | None = None) -> None:
         # 1. Select Branch
         try:
             self.page.locator("input[name='branch_id']").locator("xpath=..").locator(
@@ -80,7 +84,7 @@ class PurchaseRequestPage:
             self._select_product_in_row(row_idx, item["product"])
             self._fill_quantity_in_row(row_idx, item["quantity"])
 
-    def add_purchase_request(self, branch, supplier, priority, products_data, notes=None):
+    def add_purchase_request(self, branch: str, supplier: str, priority: str, products_data: list[dict[str, str | int]], notes: str | None = None) -> None:
         self.page.goto(f"{self.url}/add")
         self.page.wait_for_load_state("networkidle")
 
@@ -98,7 +102,37 @@ class PurchaseRequestPage:
         self.navigate()
         self.page.wait_for_load_state("networkidle")
 
-    def search_purchase_request(self, supplier_name, retries=2):
+    def validate_required_fields(self) -> bool:
+        self.page.goto(f"{self.url}/add")
+        self.page.wait_for_load_state("networkidle")
+        create_button = self.page.get_by_role("button", name="Create").first
+        if create_button.is_disabled():
+            return True
+        create_button.click()
+        return has_required_field_feedback(self.page)
+
+    def validate_invalid_quantity(self, branch: str, supplier: str, priority: str, product: str, quantity: str | int) -> bool:
+        self.page.goto(f"{self.url}/add")
+        self.page.wait_for_load_state("networkidle")
+        self._fill_purchase_request_form(
+            branch,
+            supplier,
+            priority,
+            [{"product": product, "quantity": quantity}],
+        )
+        quantity_input = self.page.get_by_placeholder("Quantity").first
+        if not quantity_input.evaluate("element => element.validity.valid"):
+            return True
+
+        self.page.get_by_role("button", name="Create").first.click()
+        return has_required_field_feedback(self.page, timeout=2000) or has_validation_feedback(
+            self.page,
+            r"quantity.*(?:positive|greater|zero|invalid|required)",
+            r"(?:positive|valid).*quantity",
+            timeout=2000,
+        )
+
+    def search_purchase_request(self, supplier_name: str, retries: int = 2) -> bool:
         search_box = self.page.get_by_role("textbox", name="Search...")
         row = self.page.locator("table tbody tr").first
 
@@ -110,7 +144,7 @@ class PurchaseRequestPage:
             search_box.fill("")
             search_box.fill(supplier_name)
             search_box.press("Enter")
-            self.page.wait_for_load_state("networkidle")
+            self.page.wait_for_load_state("networkidle", timeout=5000)
 
             try:
                 row.wait_for(state="visible", timeout=5000)
@@ -125,7 +159,7 @@ class PurchaseRequestPage:
 
         return False
 
-    def view_purchase_request(self, supplier_name, first_product_name, priority):
+    def view_purchase_request(self, supplier_name: str, first_product_name: str, priority: str) -> bool:
         self.search_purchase_request(supplier_name)
         self.page.get_by_title("view").first.click()
 
@@ -143,7 +177,24 @@ class PurchaseRequestPage:
             pass
         return is_valid
 
-    def edit_purchase_request(self, supplier_name, new_product_name, new_quantity):
+    def purchase_request_contains_products(self, supplier_name: str, product_names: list[str]) -> bool:
+        self.search_purchase_request(supplier_name)
+        self.page.get_by_title("view").first.click()
+        try:
+            for product_name in product_names:
+                self.page.get_by_text(product_name, exact=False).first.wait_for(
+                    state="visible", timeout=5000
+                )
+            return True
+        except Exception:
+            return False
+        finally:
+            try:
+                self.page.locator(".btn-close").click()
+            except Exception:
+                pass
+
+    def edit_purchase_request(self, supplier_name: str, new_product_name: str, new_quantity: str | int) -> bool:
         self.search_purchase_request(supplier_name)
         self.page.get_by_title("edit").first.click()
         self.page.wait_for_load_state("networkidle")
@@ -167,13 +218,13 @@ class PurchaseRequestPage:
         except Exception:
             return False
 
-    def download_purchase_request(self, supplier_name):
+    def download_purchase_request(self, supplier_name: str) -> Download:
         self.search_purchase_request(supplier_name)
         with self.page.expect_download() as download_info:
             self.page.get_by_title("download").first.click()
         return download_info.value
 
-    def delete_purchase_request(self, supplier_name):
+    def delete_purchase_request(self, supplier_name: str) -> bool:
         self.search_purchase_request(supplier_name)
         self.page.get_by_title("delete").first.click()
 
@@ -195,7 +246,7 @@ class PurchaseRequestPage:
         except Exception:
             return False
 
-    def retrieve_purchase_request(self, supplier_name):
+    def retrieve_purchase_request(self, supplier_name: str) -> bool:
         self.search_purchase_request(supplier_name)
         self.page.get_by_title("delete").first.click() # The delete icon acts as restore when deleted
 

@@ -15,6 +15,7 @@ def branch_cleanup(logged_in_page):
                     branches_page.delete_branch(name)
         except Exception as e:
             print(f"Teardown: Failed to delete branch {name}: {e}")
+        branches_page.cleanup_auto_city(name)
 
 def test_branches_visibility(logged_in_page):
     branches_page = BranchesPage(logged_in_page)
@@ -104,3 +105,33 @@ def test_duplicate_branch(logged_in_page, branch_cleanup):
     branch_cleanup.append(branch_name)
 
     assert branches_page.duplicate_branch_name(branch_name)
+
+
+@pytest.mark.parametrize("phone", ["123", "abcdefghij"])
+def test_validate_branch_phone(logged_in_page, phone):
+    branches_page = BranchesPage(logged_in_page)
+    branches_page.navigate()
+    logged_in_page.wait_for_load_state("networkidle", timeout=10000)
+    assert branches_page.validate_invalid_phone(phone), (
+        f"Expected visible phone validation feedback for {phone!r}"
+    )
+
+
+@pytest.mark.skip(reason="Known bug: phone numbers starting outside 6-9 are accepted")
+def test_reject_branch_phone_with_invalid_start_digit(logged_in_page):
+    branches_page = BranchesPage(logged_in_page)
+    branches_page.navigate()
+    logged_in_page.wait_for_load_state("networkidle", timeout=10000)
+    assert branches_page.validate_invalid_phone("1234567890"), (
+        "Expected phone validation when the first digit is not 6, 7, 8, or 9"
+    )
+
+
+@pytest.mark.skip(reason="Known UI gap: Branch Actions column has no sorting option")
+def test_branch_actions_column_sorting_is_available(logged_in_page):
+    branches_page = BranchesPage(logged_in_page)
+    branches_page.navigate()
+    logged_in_page.wait_for_load_state("networkidle", timeout=10000)
+    assert branches_page.has_actions_sorting_control(), (
+        "Expected a sorting control in the Branch Actions column"
+    )

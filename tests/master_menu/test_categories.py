@@ -93,3 +93,13 @@ def test_validate_required_fields(logged_in_page):
     categories_page = CategoriesPage(logged_in_page)
     categories_page.navigate()
     assert categories_page.validate_required_fields()   
+
+def test_duplicate_category_name(logged_in_page, category_cleanup):
+    categories_page = CategoriesPage(logged_in_page)
+    categories_page.navigate()
+    
+    category_name = generate_random_name("dup_cat")
+    categories_page.add_category(name=category_name)
+    category_cleanup.append(category_name)
+    
+    assert categories_page.validate_duplicate_category(category_name)

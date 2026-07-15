@@ -50,3 +50,28 @@ def test_validate_product_attribute(logged_in_page):
     page_obj.navigate()
     logged_in_page.wait_for_load_state("networkidle")
     assert page_obj.validate_required_fields()
+
+
+def test_reject_overlength_product_attribute_name(logged_in_page):
+    page_obj = ProductAttributesPage(logged_in_page)
+    page_obj.navigate()
+    logged_in_page.wait_for_load_state("networkidle")
+    assert page_obj.validate_name_too_long("A" * 256), (
+        "Expected visible validation feedback for an overlength attribute name"
+    )
+
+
+@pytest.mark.skip(
+    reason="Known UI gap: Product Attribute rows have no view, edit, or delete actions"
+)
+def test_product_attribute_row_actions_are_available(
+    logged_in_page, product_attr_cleanup
+):
+    page_obj = ProductAttributesPage(logged_in_page)
+    page_obj.navigate()
+    attribute_name = generate_random_name("attribute_actions")
+    page_obj.add_product_attribute(name=attribute_name)
+    product_attr_cleanup.append(attribute_name)
+    assert page_obj.has_row_actions(attribute_name), (
+        "Expected view, edit, and delete actions for the Product Attribute row"
+    )

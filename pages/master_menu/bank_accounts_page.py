@@ -1,18 +1,22 @@
+from __future__ import annotations
+
+from playwright.sync_api import Page
+
 from utils.constants import BANK_ACCOUNTS_URL
 from pages.common.form_page import has_validation_feedback
 
 class BankAccountPage:
-    def __init__(self, page):
+    def __init__(self, page: Page) -> None:
         self.page = page 
         self.bank_account_url = BANK_ACCOUNTS_URL
 
-    def navigate(self):
-        return self.page.goto(self.bank_account_url)
+    def navigate(self) -> None:
+        self.page.goto(self.bank_account_url)
 
-    def is_bank_account_visible(self):
+    def is_bank_account_visible(self) -> bool:
         return self.page.get_by_role("button", name="Add Bank Account").is_visible()
 
-    def add_bank_account(self, bank_name, branch, account_number, ifsc_code):
+    def add_bank_account(self, bank_name: str, branch: str, account_number: str, ifsc_code: str) -> None:
         self.page.get_by_role("button", name="Add Bank Account").click()
         
         modal = self.page.get_by_role("dialog")
@@ -26,19 +30,19 @@ class BankAccountPage:
         modal.get_by_role("button", name="Create").click()
         modal.wait_for(state="hidden", timeout=5000)
 
-    def search_bank_account(self, bank_name):
+    def search_bank_account(self, bank_name: str) -> bool:
         search_box = self.page.get_by_role("textbox", name="Search...")
         search_box.fill(bank_name)
         search_box.press("Enter")
-        
+        self.page.wait_for_load_state("networkidle", timeout=5000)
         locator = self.page.get_by_text(bank_name, exact=True).first
         try:
-            locator.wait_for(state="visible", timeout=3000)
+            locator.wait_for(state="visible", timeout=5000)
             return True
         except Exception:
             return False
 
-    def view_bank_account(self, bank_name):
+    def view_bank_account(self, bank_name: str) -> bool:
         self.search_bank_account(bank_name)
         row = self.page.locator("tr", has=self.page.get_by_text(bank_name, exact=True))
         row.wait_for(state="visible", timeout=5000)
@@ -61,7 +65,7 @@ class BankAccountPage:
             
         return is_visible
 
-    def edit_bank_account(self, old_name, new_name):
+    def edit_bank_account(self, old_name: str, new_name: str) -> bool:
         self.search_bank_account(old_name)
         row = self.page.locator("tr", has=self.page.get_by_text(old_name, exact=True))
         row.wait_for(state="visible", timeout=5000)
@@ -83,7 +87,7 @@ class BankAccountPage:
             except Exception:
                 return False
 
-    def delete_bank_account(self, bank_name):
+    def delete_bank_account(self, bank_name: str) -> bool:
         self.search_bank_account(bank_name)
         row = self.page.locator("tr", has=self.page.get_by_text(bank_name, exact=True))
         row.wait_for(state="visible", timeout=5000)
@@ -101,7 +105,7 @@ class BankAccountPage:
         except Exception:
             return False
 
-    def retrieve_bank_account(self, bank_name):
+    def retrieve_bank_account(self, bank_name: str) -> bool:
         self.search_bank_account(bank_name)
         row = self.page.locator("tr", has=self.page.get_by_text(bank_name, exact=True))
         row.wait_for(state="visible", timeout=5000)
@@ -119,7 +123,7 @@ class BankAccountPage:
         except Exception:
             return False
 
-    def validate_required_fields(self):
+    def validate_required_fields(self) -> bool:
         self.page.get_by_role("button", name="Add Bank Account").click()
         modal = self.page.get_by_role("dialog")
         modal.wait_for(state="visible", timeout=5000)
@@ -136,7 +140,7 @@ class BankAccountPage:
         self.navigate()
         return is_valid
 
-    def validate_invalid_format(self, field, value):
+    def validate_invalid_format(self, field: str, value: str) -> bool:
         self.page.get_by_role("button", name="Add Bank Account").click()
         modal = self.page.get_by_role("dialog")
         modal.wait_for(state="visible", timeout=5000)

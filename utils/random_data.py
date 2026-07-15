@@ -1,34 +1,39 @@
+from __future__ import annotations
+
 import random
 import string
-import time
+import uuid
 
-def generate_random_name(prefix="Item"):
-    return f"{prefix}_{int(time.time())}"
+def _unique_suffix() -> str:
+    return uuid.uuid4().hex[:8]
 
-def generate_random_code(prefix="CD"):
-    return f"{prefix}_{str(int(time.time()))[-6:]}"
+def generate_random_name(prefix: str = "Item") -> str:
+    return f"{prefix}_{_unique_suffix()}"
 
-def generate_random_address():
+def generate_random_code(prefix: str = "CD") -> str:
+    return f"{prefix}_{_unique_suffix()}"
+
+def generate_random_address() -> str:
     house_num = random.randint(10, 999)
     streets = ["Main St", "Broadway Ave", "Park Lane", "Link Road", "Station Road"]
     cities = ["Coimbatore", "Chennai", "Bangalore", "Mumbai"]
     return f"No. {house_num}, {random.choice(streets)}, {random.choice(cities)}"
 
-def generate_random_postal_code():
+def generate_random_postal_code() -> str:
     return "".join(["6"] + random.choices(string.digits, k=5))
 
-def generate_random_phone():
+def generate_random_phone() -> str:
     first_digit = str(random.choice([7, 8, 9]))
     remaining_digits = "".join(random.choices(string.digits, k=9))
     return first_digit + remaining_digits
 
-def generate_random_email(prefix="test"):
-    return f"{prefix}_{int(time.time())}@example.com"
+def generate_random_email(prefix: str = "test") -> str:
+    return f"{prefix}_{_unique_suffix()}@example.com"
 
-def generate_random_description(description="Item"):
-    return f"{description}_{int(time.time())}"
+def generate_random_description(description: str = "Item") -> str:
+    return f"{description}_{_unique_suffix()}"
 
-def generate_random_password(length=12):
+def generate_random_password(length: int = 12) -> str:
     uppercase = string.ascii_uppercase
     lowercase = string.ascii_lowercase
     digits = string.digits
@@ -48,6 +53,15 @@ def generate_random_password(length=12):
     
     return "".join(password_char)
 
-def generate_random_unit():
+def generate_random_unit() -> str:
     units = ["kg", "g", "mg", "L", "mL", "cm", "m", "mm", "pcs", "box", "dozen", "pair", "set", "pack"]
     return random.choice(units)
+
+def generate_random_gst() -> str:
+    """Generates a random valid GSTIN format for testing."""
+    pan = (
+        "".join(random.choices(string.ascii_uppercase, k=5))
+        + "".join(random.choices(string.digits, k=4))
+        + random.choice(string.ascii_uppercase)
+    )
+    return f"33{pan}1Z{random.choice(string.ascii_uppercase + string.digits)}"

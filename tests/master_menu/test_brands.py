@@ -97,3 +97,32 @@ def test_validate_brand(logged_in_page):
     brand_page = BrandPage(logged_in_page)
     brand_page.navigate()
     assert brand_page.validate_required_fields()
+
+
+def test_reject_blank_only_brand_name(logged_in_page):
+    brand_page = BrandPage(logged_in_page)
+    brand_page.navigate()
+    assert brand_page.validate_blank_only_name(), (
+        "Expected visible validation feedback for a blank-only brand name"
+    )
+
+
+def test_trim_brand_name_whitespace(logged_in_page, brand_cleanup):
+    brand_page = BrandPage(logged_in_page)
+    brand_page.navigate()
+    name = generate_random_name("trimmed_brand")
+    description = generate_random_description("trim_validation")
+    assert brand_page.validate_name_is_trimmed(name, description)
+    brand_cleanup.append(name)
+
+def test_duplicate_brand_name(logged_in_page, brand_cleanup):
+    brand_page = BrandPage(logged_in_page)
+    brand_page.navigate()
+    
+    brand_name = generate_random_name("dup_brand")
+    description = generate_random_description("description")
+    brand_page.add_brand(brand_name, description)
+    brand_cleanup.append(brand_name)
+    
+    assert brand_page.validate_duplicate_brand(brand_name, description)
+

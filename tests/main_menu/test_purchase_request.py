@@ -1,6 +1,7 @@
 import pytest
 import random
 import string
+import os
 from pages.main_menu.purchase_request_page import PurchaseRequestPage
 from pages.main_menu.products_page import ProductsPage
 from pages.main_menu.suppliers_page import SuppliersPage
@@ -112,6 +113,7 @@ def module_branch(module_page):
             branches_page.delete_branch(branch_name)
     except Exception as e:
         print(f"Teardown: Failed to delete branch {branch_name}: {e}")
+    branches_page.cleanup_auto_city(branch_name)
 
 
 @pytest.fixture(scope="module")
@@ -319,11 +321,9 @@ def test_download_purchase_request(purchase_requests_page, make_purchase_request
 
     download = purchase_requests_page.download_purchase_request(supplier)
     assert download is not None
-    assert (
-        download.suggested_filename.endswith(".pdf")
-        or download.suggested_filename.endswith(".xlsx")
-        or len(download.suggested_filename) > 0
-    )
+    path = download.path()
+    assert path and os.path.exists(path), "Purchase request download failed"
+    assert os.path.getsize(path) > 0, "Downloaded purchase request file is empty"
 
 
 def test_delete_purchase_request(purchase_requests_page, make_purchase_request, purchase_request_cleanup):

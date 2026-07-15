@@ -169,3 +169,23 @@ def test_validate_attribute_value(logged_in_page):
     page_obj.navigate()
     logged_in_page.wait_for_load_state("networkidle")
     assert page_obj.validate_required_fields()
+
+
+def test_reject_duplicate_attribute_value(
+    logged_in_page, attribute_key_cleanup, attribute_value_cleanup
+):
+    key_page = AttributeKeysPage(logged_in_page)
+    key_page.navigate()
+    key_name = generate_random_name("duplicate_key")
+    key_page.add_attribute_key(name=key_name)
+    attribute_key_cleanup.append(key_name)
+
+    value_page = AttributeValuesPage(logged_in_page)
+    value_page.navigate()
+    value_name = generate_random_name("duplicate_value")
+    value_page.add_attribute_value(key_name=key_name, value=value_name)
+    attribute_value_cleanup.append(value_name)
+    assert value_page.search_attribute_value(value_name)
+    assert value_page.validate_duplicate_value(key_name, value_name), (
+        "Expected visible validation feedback for a duplicate attribute value"
+    )

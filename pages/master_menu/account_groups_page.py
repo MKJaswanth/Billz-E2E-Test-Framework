@@ -1,12 +1,17 @@
+from __future__ import annotations
+
 import re
+
+from playwright.sync_api import Page
+
 from utils.constants import ACCOUNT_GROUPS_URL
 
 class AccountGroupsPage:
-    def __init__(self, page):
+    def __init__(self, page: Page) -> None:
         self.page = page
         self.account_groups_url = ACCOUNT_GROUPS_URL
 
-    def navigate(self):
+    def navigate(self) -> None:
         self.page.goto(self.account_groups_url)
         try:
             self.page.get_by_role("button", name="Table").first.click(timeout=2000)
@@ -16,10 +21,10 @@ class AccountGroupsPage:
             except Exception:
                 pass
 
-    def is_account_group_visible(self):
+    def is_account_group_visible(self) -> bool:
         return self.page.get_by_role("button", name="Add Account Group").is_visible()
 
-    def add_account_group(self, name, parent_group="Current Assets"):
+    def add_account_group(self, name: str, parent_group: str = "Current Assets") -> None:
         self.page.get_by_role("button", name="Add Account Group").click()
         modal = self.page.get_by_role("dialog")
         modal.wait_for(state="visible", timeout=5000)
@@ -32,7 +37,7 @@ class AccountGroupsPage:
         self.page.get_by_text("Account group created").first.wait_for(state="visible", timeout=10000)
         modal.wait_for(state="hidden", timeout=10000)
 
-    def search_account_group(self, name):
+    def search_account_group(self, name: str) -> bool:
         try:
             self.page.get_by_role("button", name="Table").first.click(timeout=2000)
         except Exception:
@@ -49,7 +54,7 @@ class AccountGroupsPage:
         except Exception:
             return False
 
-    def view_account_group(self, name):
+    def view_account_group(self, name: str) -> bool:
         self.search_account_group(name)
         row = self.page.locator("tr", has=self.page.get_by_text(name, exact=True))
         row.wait_for(state="visible", timeout=5000)
@@ -69,7 +74,7 @@ class AccountGroupsPage:
             close_btn.click()
         return is_visible
 
-    def edit_account_group(self, old_name, new_name):
+    def edit_account_group(self, old_name: str, new_name: str) -> bool:
         self.search_account_group(old_name)
         row = self.page.locator("tr", has=self.page.get_by_text(old_name, exact=True))
         row.wait_for(state="visible", timeout=5000)
@@ -89,7 +94,7 @@ class AccountGroupsPage:
         except Exception:
             return False
 
-    def delete_account_group(self, name):
+    def delete_account_group(self, name: str) -> bool:
         self.search_account_group(name)
         row = self.page.locator("tr", has=self.page.get_by_text(name, exact=True))
         row.wait_for(state="visible", timeout=5000)
@@ -108,7 +113,7 @@ class AccountGroupsPage:
         except Exception:
             return False
 
-    def retrieve_account_group(self, name):
+    def retrieve_account_group(self, name: str) -> bool:
         self.search_account_group(name)
         row = self.page.locator("tr", has=self.page.get_by_text(name, exact=True))
         row.wait_for(state="visible", timeout=5000)
@@ -127,7 +132,7 @@ class AccountGroupsPage:
         except Exception:
             return False
 
-    def validate_required_fields(self):
+    def validate_required_fields(self) -> bool:
         self.page.get_by_role("button", name="Add Account Group").click()
         modal = self.page.get_by_role("dialog")
         modal.wait_for(state="visible", timeout=5000)

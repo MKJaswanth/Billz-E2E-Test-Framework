@@ -123,3 +123,29 @@ def test_validate_bank_account(logged_in_page):
     page_obj.navigate()
     logged_in_page.wait_for_load_state("networkidle")
     assert page_obj.validate_required_fields()
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        pytest.param("account_number", "ABC123", id="invalid-account-number"),
+        pytest.param("ifsc_code", "INVALID", id="invalid-ifsc"),
+    ],
+)
+def test_validate_bank_account_formats(logged_in_page, field, value):
+    page_obj = BankAccountPage(logged_in_page)
+    page_obj.navigate()
+    logged_in_page.wait_for_load_state("networkidle")
+    assert page_obj.validate_invalid_format(field, value), (
+        f"Expected visible validation feedback for invalid {field}"
+    )
+
+
+@pytest.mark.skip(reason="Known bug: alphanumeric bank account numbers are accepted")
+def test_reject_alphanumeric_bank_account_number(logged_in_page):
+    page_obj = BankAccountPage(logged_in_page)
+    page_obj.navigate()
+    logged_in_page.wait_for_load_state("networkidle")
+    assert page_obj.validate_invalid_format("account_number", "78799900ghjg"), (
+        "Expected account-number validation because only digits are allowed"
+    )

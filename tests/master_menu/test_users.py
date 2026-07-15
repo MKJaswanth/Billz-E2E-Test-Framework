@@ -18,6 +18,7 @@ def branch_cleanup(logged_in_page):
                     branches_page.delete_branch(name)
         except Exception as e:
             print(f"Teardown: Failed to delete branch {name}: {e}")
+        branches_page.cleanup_auto_city(name)
 
 @pytest.fixture
 def role_cleanup(logged_in_page):
@@ -190,7 +191,7 @@ def test_retrieve_user(logged_in_page, branch_cleanup, role_cleanup, user_cleanu
     role_cleanup.append(role_name)
     
     users_page = UsersPage(logged_in_page)
-    users_page.navigate()
+    users_page.navigate() 
     
     user_name = generate_random_name("auto_retrieve")
     email = generate_random_email("autoretemail")
@@ -199,9 +200,102 @@ def test_retrieve_user(logged_in_page, branch_cleanup, role_cleanup, user_cleanu
     users_page.add_user(name=user_name, email=email, password=password, branch_name=branch_name, role_name=role_name)
     user_cleanup.append(user_name)
     assert users_page.delete_user(user_name)
-    assert users_page.retrieve_user(user_name)
+    assert users_page.retrieve_user(user_name) 
+
 
 def test_validate_user_fields(logged_in_page):
     users_page = UsersPage(logged_in_page)
     users_page.navigate()
     assert users_page.validate_user_required_fields()
+
+
+@pytest.mark.parametrize(
+    ("field", "email", "password"),
+    [
+        pytest.param("email", "invalid-email", generate_random_password(), id="invalid-email"),
+        pytest.param("password", generate_random_email("valid"), "123", id="weak-password"),
+    ],
+)
+def test_validate_user_email_and_password(
+    logged_in_page, branch_cleanup, role_cleanup, field, email, password
+):
+    branches_page = BranchesPage(logged_in_page)
+    branches_page.navigate()
+    branch_name = branches_page.add_branch()
+    branch_cleanup.append(branch_name)
+
+    roles_page = RolesPage(logged_in_page)
+    roles_page.navigate()
+    role_name = roles_page.add_roles()
+    role_cleanup.append(role_name)
+
+    users_page = UsersPage(logged_in_page)
+    users_page.navigate()
+    assert users_page.validate_invalid_user_field(
+        name=generate_random_name("invalid_user"),
+        email=email,
+        password=password,
+        branch_name=branch_name,
+        role_name=role_name,
+        field=field,
+    ), f"Expected visible validation feedback for invalid {field}"
+
+
+@pytest.mark.skip(
+    reason="Known bug: user email without a valid domain suffix is accepted"
+)
+def test_reject_user_email_without_valid_domain_suffix(
+    logged_in_page, branch_cleanup, role_cleanup
+):
+    branches_page = BranchesPage(logged_in_page)
+    branches_page.navigate()
+    branch_name = branches_page.add_branch()
+    branch_cleanup.append(branch_name)
+
+    roles_page = RolesPage(logged_in_page)
+    roles_page.navigate()
+    role_name = roles_page.add_roles()
+    role_cleanup.append(role_name)
+
+    users_page = UsersPage(logged_in_page)
+    users_page.navigate()
+    assert users_page.validate_invalid_user_field(
+        name=generate_random_name("invalid_domain_user"),
+        email="autobranchassigned_1783917224@example",
+        password=generate_random_password(),
+        branch_name=branch_name,
+        role_name=role_name,
+        field="email",
+    ), "Expected email validation for a domain without a suffix"
+
+
+def test_reject_duplicate_user_email(
+    logged_in_page, branch_cleanup, role_cleanup, user_cleanup
+):
+    branches_page = BranchesPage(logged_in_page)
+    branches_page.navigate()
+    branch_name = branches_page.add_branch()
+    branch_cleanup.append(branch_name)
+
+    roles_page = RolesPage(logged_in_page)
+    roles_page.navigate()
+    role_name = roles_page.add_roles()
+    role_cleanup.append(role_name)
+
+    users_page = UsersPage(logged_in_page)
+    users_page.navigate()
+    first_name = generate_random_name("duplicate_email_user")
+    duplicate_email = generate_random_email("duplicate")
+    password = generate_random_password()
+    users_page.add_user(
+        first_name, duplicate_email, password, branch_name, role_name
+    )
+    user_cleanup.append(first_name)
+
+    assert users_page.validate_duplicate_email(
+        name=generate_random_name("second_duplicate_email_user"),
+        email=duplicate_email,
+        password=password,
+        branch_name=branch_name,
+        role_name=role_name,
+    ), "Expected visible validation feedback for a duplicate user email"

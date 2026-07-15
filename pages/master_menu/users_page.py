@@ -1,29 +1,34 @@
+from __future__ import annotations
+
+from playwright.sync_api import Page
+
 from utils.constants import USERS_URL 
+from pages.common.form_page import has_validation_feedback
 
 class UsersPage:
-    def __init__(self, page):
+    def __init__(self, page: Page) -> None:
         self.page = page
         self.users_url = USERS_URL
         
-    def navigate(self):
-        return self.page.goto(self.users_url)
+    def navigate(self) -> None:
+        self.page.goto(self.users_url)
     
-    def is_user_visible(self):
+    def is_user_visible(self) -> bool:
         return self.page.get_by_role("button", name="Add User").is_visible()
     
-    def search_user(self, user_name):
+    def search_user(self, user_name: str) -> bool:
         search_box = self.page.get_by_role("textbox", name="Search users...")
         search_box.fill(user_name)
         search_box.press("Enter")
-        
-        user_locator = self.page.get_by_text(user_name, exact=True)
-        try: 
-            user_locator.wait_for(state="visible", timeout=1000)
+        self.page.wait_for_load_state("networkidle", timeout=5000)
+        locator = self.page.get_by_text(user_name, exact=True).first
+        try:
+            locator.wait_for(state="visible", timeout=5000)
             return True
         except Exception:
             return False
         
-    def add_user(self, name, email, password, branch_name, role_name):
+    def add_user(self, name: str, email: str, password: str, branch_name: str, role_name: str) -> None:
         self.page.get_by_role("button", name="Add User").click()
         
         self.page.locator("input[name=\"name\"]").fill(name)
@@ -39,7 +44,7 @@ class UsersPage:
         self.page.get_by_role("button", name="Create").click()
         self.page.get_by_text("User created successfully").wait_for(state="visible", timeout=10000)
         
-    def edit_user(self, old_name, new_name):
+    def edit_user(self, old_name: str, new_name: str) -> bool:
         self.search_user(old_name)
         
         user_row = self.page.locator("tr", has=self.page.get_by_text(old_name, exact=True))
@@ -56,7 +61,7 @@ class UsersPage:
         except Exception:
             return False
     
-    def view_user(self, user_name):
+    def view_user(self, user_name: str) -> bool:
         self.search_user(user_name)
         
         user_row = self.page.locator("tr", has=self.page.get_by_text(user_name, exact=True))
@@ -75,7 +80,7 @@ class UsersPage:
         self.page.get_by_role("button", name="Back to List").click()
         return is_visible
 
-    def delete_user(self, user_name):
+    def delete_user(self, user_name: str) -> bool:
         self.search_user(user_name)
         
         user_row = self.page.locator("tr", has=self.page.get_by_text(user_name, exact=True))
@@ -91,7 +96,7 @@ class UsersPage:
         except Exception:
             return False
 
-    def retrieve_user(self, user_name):
+    def retrieve_user(self, user_name: str) -> bool:
         self.search_user(user_name)
         
         user_row = self.page.locator("tr", has=self.page.get_by_text(user_name, exact=True))
@@ -107,7 +112,7 @@ class UsersPage:
         except Exception:
             return False
 
-    def validate_user_required_fields(self):
+    def validate_user_required_fields(self) -> bool:
         self.page.get_by_role("button", name="Add User").click()
         self.page.get_by_role("button", name="Create").click()
         
@@ -125,3 +130,64 @@ class UsersPage:
             
         self.navigate()
         return is_valid
+
+    def validate_invalid_user_field(
+        self, name: str, email: str, password: str, branch_name: str, role_name: str, field: str
+    ) -> bool:
+        self.page.get_by_role("button", name="Add User").click()
+        self.page.locator('input[name="name"]').fill(name)
+        self.page.locator('input[name="email"]').fill(email)
+        self.page.locator('input[name="password"]').fill(password)
+
+        self.page.locator(
+            ".react-select__value-container.react-select__value-container--is-multi "
+            "> .react-select__input-container"
+        ).click()
+        self.page.get_by_role("option", name=branch_name).click()
+
+        self.page.locator(
+            "div:nth-child(6) > .mb-3 > .css-b62m3t-container "
+            "> .react-select__control > .react-select__value-container "
+            "> .react-select__input-container"
+        ).click()
+        self.page.get_by_role("option", name=role_name).click()
+        self.page.get_by_role("button", name="Create").click()
+
+        patterns = {
+            "email": (
+                r"invalid email",
+                r"valid email",
+                r"email.*format",
+            ),
+            "password": (
+                r"password.*(?:at least|minimum|uppercase|lowercase|number|special|weak)",
+                r"(?:at least|minimum).*password",
+            ),
+        }
+        return has_validation_feedback(self.page, *patterns[field])
+
+    def validate_duplicate_email(self, name: str, email: str, password: str, branch_name: str, role_name: str) -> bool:
+        self.page.get_by_role("button", name="Add User").click()
+        self.page.locator('input[name="name"]').fill(name)
+        self.page.locator('input[name="email"]').fill(email)
+        self.page.locator('input[name="password"]').fill(password)
+
+        self.page.locator(
+            ".react-select__value-container.react-select__value-container--is-multi "
+            "> .react-select__input-container"
+        ).click()
+        self.page.get_by_role("option", name=branch_name).click()
+        self.page.locator(
+            "div:nth-child(6) > .mb-3 > .css-b62m3t-container "
+            "> .react-select__control > .react-select__value-container "
+            "> .react-select__input-container"
+        ).click()
+        self.page.get_by_role("option", name=role_name).click()
+        self.page.get_by_role("button", name="Create").click()
+
+        return has_validation_feedback(
+            self.page,
+            r"email.*already been taken",
+            r"email.*already exists",
+            r"duplicate.*email",
+        )

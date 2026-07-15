@@ -1,17 +1,22 @@
+from __future__ import annotations
+
+from playwright.sync_api import Page
+
 from utils.constants import PRODUCT_ATTRIBUTES_URL
+from pages.common.form_page import has_validation_feedback
 
 class ProductAttributesPage:
-    def __init__(self, page):
+    def __init__(self, page: Page) -> None:
         self.page = page
         self.product_attributes_url = PRODUCT_ATTRIBUTES_URL
         
-    def navigate(self):
-        return self.page.goto(self.product_attributes_url)
+    def navigate(self) -> None:
+        self.page.goto(self.product_attributes_url)
         
-    def is_product_attributes_visible(self):
+    def is_product_attributes_visible(self) -> bool:
         return self.page.get_by_role("button", name="Add Product Unit Attribute").is_visible()
         
-    def add_product_attribute(self, name, sort_order=None, unique=False, description=None):
+    def add_product_attribute(self, name: str, sort_order: int | None = None, unique: bool = False, description: str | None = None) -> None:
         self.page.get_by_role("button", name="Add Product Unit Attribute").click()
         
         modal = self.page.get_by_role("dialog")
@@ -30,19 +35,28 @@ class ProductAttributesPage:
             
         modal.get_by_role("button", name="Create").click()
         
-    def search_product_attribute(self, name):
+    def search_product_attribute(self, name: str) -> bool:
         search_box = self.page.get_by_role("textbox", name="Search...")
         search_box.fill(name)
         search_box.press("Enter")
-        
+        self.page.wait_for_load_state("networkidle", timeout=5000)
         locator = self.page.get_by_text(name, exact=True).first
         try:
-            locator.wait_for(state="visible", timeout=3000)
+            locator.wait_for(state="visible", timeout=5000)
             return True
         except Exception:
             return False
 
-    def view_product_attribute(self, name):
+    def has_row_actions(self, name: str) -> bool:
+        self.search_product_attribute(name)
+        row = self.page.locator("tr", has=self.page.get_by_text(name, exact=True))
+        row.wait_for(state="visible", timeout=5000)
+        return all(
+            row.get_by_title(action).count() > 0
+            for action in ("view", "edit", "delete")
+        )
+
+    def view_product_attribute(self, name: str) -> bool:
         self.search_product_attribute(name)
         row = self.page.locator("tr", has=self.page.get_by_text(name, exact=True))
         row.wait_for(state="visible", timeout=5000)
@@ -60,7 +74,7 @@ class ProductAttributesPage:
         modal.locator(".btn-close").click()
         return is_visible
 
-    def edit_product_attribute(self, old_name, new_name):
+    def edit_product_attribute(self, old_name: str, new_name: str) -> bool:
         self.search_product_attribute(old_name)
         row = self.page.locator("tr", has=self.page.get_by_text(old_name, exact=True))
         row.wait_for(state="visible", timeout=5000)
@@ -84,7 +98,7 @@ class ProductAttributesPage:
         except Exception:
             return False
 
-    def delete_product_attribute(self, name):
+    def delete_product_attribute(self, name: str) -> bool:
         self.search_product_attribute(name)
         row = self.page.locator("tr", has=self.page.get_by_text(name, exact=True))
         row.wait_for(state="visible", timeout=5000)
@@ -102,7 +116,7 @@ class ProductAttributesPage:
         except Exception:
             return False
 
-    def retrieve_product_attribute(self, name):
+    def retrieve_product_attribute(self, name: str) -> bool:
         self.search_product_attribute(name)
         row = self.page.locator("tr", has=self.page.get_by_text(name, exact=True))
         row.wait_for(state="visible", timeout=5000)
@@ -120,7 +134,7 @@ class ProductAttributesPage:
         except Exception:
             return False
 
-    def validate_required_fields(self):
+    def validate_required_fields(self) -> bool:
         self.page.get_by_role("button", name="Add Product Unit Attribute").click()
         modal = self.page.get_by_role("dialog")
         modal.wait_for(state="visible", timeout=5000)
@@ -136,3 +150,15 @@ class ProductAttributesPage:
             
         self.navigate()
         return is_valid
+
+    def validate_name_too_long(self, name: str) -> bool:
+        self.page.get_by_role("button", name="Add Product Unit Attribute").click()
+        modal = self.page.get_by_role("dialog")
+        modal.wait_for(state="visible", timeout=5000)
+        modal.locator('input[name="name"]').fill(name)
+        modal.get_by_role("button", name="Create").click()
+        return has_validation_feedback(
+            self.page,
+            r"name.*(?:maximum|max|characters|too long)",
+            r"(?:maximum|max).*name",
+        )

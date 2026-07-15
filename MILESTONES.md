@@ -8,7 +8,7 @@ This milestone sheet defines the automation plan. For each module, we must ensur
 
 ## Phase 1 — Foundation (Auth & Core Helpers) (Completed on 2026-07-10 13:18 IST)
 
-- [ ] `pages/common/base_page.py` — BasePage class (shared `__init__`, navigation, and common helpers)
+- [x] `pages/common/base_page.py` — BasePage class (shared `__init__`, navigation, and common helpers) (Completed on 2026-07-14 15:47 IST)
 - [x] `pages/auth/login_page.py` — LoginPage (navigate, login, toggle password)
 - [x] `tests/test_auth.py` — Successful login, failed login, empty credentials, https check, password toggle
 
@@ -33,6 +33,8 @@ This milestone sheet defines the automation plan. For each module, we must ensur
 - [x] edit city (update flow)
 - [x] delete & restore city (status lifecycle)
 - [x] automated data teardown fixture
+- [ ] pagination verification in list view (Postponed/Skipped for now — Not a failing test)
+- [ ] list view filter inputs (Postponed/Skipped for now — Not a failing test)
 
 ### 2. Branches (Completed on 2026-07-10 13:18 IST)
 
@@ -44,6 +46,8 @@ This milestone sheet defines the automation plan. For each module, we must ensur
 - [x] delete & restore branch (status lifecycle)
 - [x] branch form validations (phone, email, required fields)
 - [x] automated data teardown fixture
+- [ ] pagination verification in list view (Postponed/Skipped for now — Not a failing test)
+- [ ] list view filter inputs (Postponed/Skipped for now — Not a failing test)
 
 ### 3. Roles (Completed on 2026-07-10 13:18 IST)
 
@@ -54,6 +58,8 @@ This milestone sheet defines the automation plan. For each module, we must ensur
 - [x] edit role
 - [x] delete & restore role
 - [x] automated data teardown fixture
+- [ ] pagination verification in list view (Postponed/Skipped for now — Not a failing test)
+- [ ] list view filter inputs (Postponed/Skipped for now — Not a failing test)
 
 ### 4. Users (Completed on 2026-07-10 13:18 IST)
 
@@ -64,6 +70,8 @@ This milestone sheet defines the automation plan. For each module, we must ensur
 - [x] edit user
 - [x] delete & restore user
 - [x] automated data teardown fixture (with cascading branch & role cleanup)
+- [ ] pagination verification in list view (Postponed/Skipped for now — Not a failing test)
+- [ ] list view filter inputs (Postponed/Skipped for now — Not a failing test)
 
 ### 5. Categories (Completed on 2026-07-10 13:18 IST)
 
@@ -74,6 +82,8 @@ This milestone sheet defines the automation plan. For each module, we must ensur
 - [x] delete & restore category
 - [x] view category
 - [x] automated data teardown fixture
+- [ ] pagination verification in list view (Postponed/Skipped for now — Not a failing test)
+- [ ] list view filter inputs (Postponed/Skipped for now — Not a failing test)
 
 ### 6. Brands (Completed on 2026-07-10 13:18 IST)
 
@@ -84,6 +94,8 @@ This milestone sheet defines the automation plan. For each module, we must ensur
 - [x] delete & restore brand
 - [x] view brand
 - [x] automated data teardown fixture
+- [ ] pagination verification in list view (Postponed/Skipped for now — Not a failing test)
+- [ ] list view filter inputs (Postponed/Skipped for now — Not a failing test)
 
 ### 7. Unit Types (Completed on 2026-07-10 13:18 IST)
 
@@ -94,6 +106,8 @@ This milestone sheet defines the automation plan. For each module, we must ensur
 - [x] delete & restore unit type
 - [x] view unit type
 - [x] automated data teardown fixture
+- [ ] pagination verification in list view (Postponed/Skipped for now — Not a failing test)
+- [ ] list view filter inputs (Postponed/Skipped for now — Not a failing test)
 
 ### 8. Attribute Keys, Values, & Product Attributes (Completed on 2026-07-10 13:18 IST)
 
@@ -102,6 +116,8 @@ This milestone sheet defines the automation plan. For each module, we must ensur
 - [x] add / edit / delete attribute values
 - [x] product attributes assignment & validations
 - [x] automated data teardown fixtures (with cascading key cleanup)
+- [ ] pagination verification in list view (Postponed/Skipped for now — Not a failing test)
+- [ ] list view filter inputs (Postponed/Skipped for now — Not a failing test)
 
 ### 9. Finance & Accounts Setup (Completed on 2026-07-10 13:18 IST)
 
@@ -116,6 +132,8 @@ This milestone sheet defines the automation plan. For each module, we must ensur
 - [x] retrieve bank account (Completed on 2026-07-10 13:18 IST)
 - [x] validate bank account formats (Completed on 2026-07-10 13:18 IST)
 - [x] automated bank accounts data teardown fixture (Completed on 2026-07-10 13:18 IST)
+- [ ] pagination verification in list view (Postponed/Skipped for now — Not a failing test)
+- [ ] list view filter inputs (Postponed/Skipped for now — Not a failing test)
 
 #### Account Groups
 
@@ -127,6 +145,8 @@ This milestone sheet defines the automation plan. For each module, we must ensur
 - [x] delete account group (Completed on 2026-07-10 13:18 IST)
 - [x] retrieve account group (skipped — see skipped.md) (Completed on 2026-07-10 13:18 IST)
 - [x] automated account groups data teardown fixture (Completed on 2026-07-10 13:18 IST)
+- [ ] pagination verification in list view (Postponed/Skipped for now — Not a failing test)
+- [ ] list view filter inputs (Postponed/Skipped for now — Not a failing test)
 
 #### Voucher Types
 
@@ -147,6 +167,8 @@ This milestone sheet defines the automation plan. For each module, we must ensur
 - [x] retrieve expense category (Completed on 2026-07-10 13:18 IST)
 - [x] reject duplicate expense category (Completed on 2026-07-10 13:18 IST)
 - [x] automated expense categories data teardown fixture (Completed on 2026-07-10 13:18 IST)
+- [ ] pagination verification in list view (Postponed/Skipped for now — Not a failing test)
+- [ ] list view filter inputs (Postponed/Skipped for now — Not a failing test)
 
 #### Enquiry Types
 
@@ -158,6 +180,8 @@ This milestone sheet defines the automation plan. For each module, we must ensur
 - [x] delete enquiry type (Completed on 2026-07-10 13:18 IST)
 - [x] retrieve enquiry type (Completed on 2026-07-10 13:18 IST)
 - [x] automated enquiry types data teardown fixture (Completed on 2026-07-10 13:18 IST)
+- [ ] pagination verification in list view (Postponed/Skipped for now — Not a failing test)
+- [ ] list view filter inputs (Postponed/Skipped for now — Not a failing test)
 
 #### SAC / HSN Codes
 
@@ -170,6 +194,8 @@ This milestone sheet defines the automation plan. For each module, we must ensur
 - [x] retrieve SAC / HSN code (Completed on 2026-07-10 13:18 IST)
 - [x] validate SAC / HSN code format (Completed on 2026-07-10 13:18 IST)
 - [x] automated SAC / HSN codes data teardown fixture (Completed on 2026-07-10 13:18 IST)
+- [ ] pagination verification in list view (Postponed/Skipped for now — Not a failing test)
+- [ ] list view filter inputs (Postponed/Skipped for now — Not a failing test)
 
 #### Racks Setup
 
@@ -183,6 +209,8 @@ This milestone sheet defines the automation plan. For each module, we must ensur
 - [x] reject duplicate rack in same branch (Completed on 2026-07-10 13:18 IST)
 - [x] delete branch containing rack (skipped — see skipped.md) (Completed on 2026-07-10 13:18 IST)
 - [x] automated racks data teardown fixture (Completed on 2026-07-10 13:18 IST)
+- [ ] pagination verification in list view (Postponed/Skipped for now — Not a failing test)
+- [ ] list view filter inputs (Postponed/Skipped for now — Not a failing test)
 
 ### 11. Enquiry Stage Workflows (Completed on 2026-07-10 13:18 IST)
 
@@ -193,6 +221,8 @@ This milestone sheet defines the automation plan. For each module, we must ensur
 - [x] toggle workflow active status
 - [x] delete & restore workflow
 - [x] automated workflow & enquiry type teardown fixtures
+- [ ] pagination verification in list view (Postponed/Skipped for now — Not a failing test)
+- [ ] list view filter inputs (Postponed/Skipped for now — Not a failing test)
 
 ---
 
@@ -209,11 +239,14 @@ This milestone sheet defines the automation plan. For each module, we must ensur
 - [x] delete & restore product
 - [x] opening stock updates
 - [x] automated product & dependencies teardown fixtures
+- [ ] pagination verification in list view (Postponed/Skipped for now — Not a failing test)
+- [ ] list view filter inputs (Postponed/Skipped for now — Not a failing test)
 
 ### 2. Customers & Suppliers (Suppliers completed on 2026-07-10 13:18 IST, Customers completed on 2026-07-13 13:12 IST)
 
 - [x] add / edit / delete customer (Completed on 2026-07-13 13:12 IST)
 - [x] customer validation (phone, email) (Completed on 2026-07-13 13:12 IST)
+- [ ] third delivery type (Billing with Delivery) while adding customer (Postponed/Skipped for now — Not a failing test; only Billing and Delivery implemented)
 - [x] page loads (supplier visibility)
 - [x] add supplier (with dynamic city fixture)
 - [x] search supplier
@@ -223,24 +256,35 @@ This milestone sheet defines the automation plan. For each module, we must ensur
 - [x] supplier form validation
 - [x] automated supplier & city teardown fixtures
 - [ ] import supplier (skipped — see skipped.md)
+- [ ] pagination verification in list view (Postponed/Skipped for now — Not a failing test)
+- [ ] list view filter inputs (Postponed/Skipped for now — Not a failing test)
 
 ### 3. Purchases & Orders
 
 - [x] create purchase request (Completed on 2026-07-13 15:15 IST)
+- [ ] create product inline inside Create Purchase Request form (Postponed/Skipped for now — Not a failing test; separate product module is used)
 - [ ] create purchase order
-- [ ] receive purchase (updates inventory)
-- [ ] purchase returns
+- [x] receive purchase (updates inventory) (Completed on 2026-07-14 09:45 IST)
+- [ ] purchase adjustments in purchase form (Postponed/Skipped for now — Not a failing test)
+- [x] purchase returns (Completed on 2026-07-14 09:45 IST)
+- [ ] pagination verification in list view (Postponed/Skipped for now — Not a failing test)
+- [ ] list view filter inputs (Postponed/Skipped for now — Not a failing test)
 
 ### 4. Sales & Invoicing
 
-- [ ] create sales quote
-- [ ] create sale / invoice (updates inventory)
-- [ ] sale returns
+- [x] create sales quote (Completed on 2026-07-14 10:36 IST)
+- [ ] create customer and product inline inside Sales Quote form (Postponed/Skipped for now — Not a failing test; separate modules are used)
+- [x] create sale / invoice (updates inventory) (Completed on 2026-07-14 11:55 IST)
+- [x] sale returns (Completed on 2026-07-14 11:55 IST)
+- [ ] pagination verification in list view (Postponed/Skipped for now — Not a failing test)
+- [ ] list view filter inputs (Postponed/Skipped for now — Not a failing test)
 
 ### 5. Inventory & Stocks
 
 - [ ] stock level verification after sales / purchases
-- [ ] batch management (adding batch numbers, expiry dates)
+- [x] batch management (adding batch numbers, expiry dates) (Completed on 2026-07-14 15:40 IST)
+- [ ] pagination verification in list view (Postponed/Skipped for now — Not a failing test)
+- [ ] list view filter inputs (Postponed/Skipped for now — Not a failing test)
 
 ---
 
@@ -266,10 +310,10 @@ This milestone sheet defines the automation plan. For each module, we must ensur
 
 | Phase                 | Total Test Cases | Completed | Remaining |
 | --------------------- | ---------------- | --------- | --------- |
-| Phase 1 — Foundation  | 3                | 2         | 1         |
+| Phase 1 — Foundation  | 3                | 3         | 0         |
 | Phase 2 — Dashboard   | 2                | 2         | 0         |
 | Phase 3 — Master Menu | 176              | 176       | 0         |
-| Phase 4 — Main Menu   | 43               | 24        | 19        |
+| Phase 4 — Main Menu   | 43               | 27        | 16        |
 | Phase 5 — Accounting  | 15               | 0         | 15        |
 | Phase 6 — Reports     | 6                | 0         | 6         |
-| **Total**             | **245**          | **204**   | **41**    |
+| **Total**             | **245**          | **208**   | **37**    |

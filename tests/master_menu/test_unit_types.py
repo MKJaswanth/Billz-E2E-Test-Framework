@@ -112,3 +112,17 @@ def test_validate_unit_type(logged_in_page):
     unit_types_page.navigate()
     logged_in_page.wait_for_load_state("networkidle")
     assert unit_types_page.validate_required_fields()
+
+
+def test_reject_duplicate_unit_type(logged_in_page, unit_type_cleanup):
+    unit_types_page = UnitTypesPage(logged_in_page)
+    unit_types_page.navigate()
+    logged_in_page.wait_for_load_state("networkidle")
+    name = generate_random_name("duplicate_unit")
+    unit = generate_random_unit()
+    description = generate_random_description("duplicate_unit_description")
+    assert unit_types_page.add_unit_type(name, unit, description)
+    unit_type_cleanup.append(name)
+    assert unit_types_page.validate_duplicate_unit(name, unit, description), (
+        "Expected visible validation feedback for a duplicate unit name or symbol"
+    )

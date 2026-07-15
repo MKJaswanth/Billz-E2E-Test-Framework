@@ -136,6 +136,31 @@ pytest --browser webkit
 
 ---
 
+## Interactive Debugging & Playback UI
+
+### Run with Draggable Playback Control Panel
+
+Runs the test in headed mode with the interactive playback floating control widget injected in the browser page:
+
+```bash
+pytest --headed --playback
+```
+
+* **Coordinates Persistence**: Drag the panel anywhere on the screen (by clicking and holding its header bar). The position is stored in `sessionStorage` and persists across all page loads and navigations.
+* **Fixture Tracking**: Displays the currently executing fixture setup/teardown name in the panel's title bar, and logs its actions in the history list.
+
+### Pause execution for manual inspection
+
+Use the `debug_pause` fixture inside a test to pause execution and prompt you in the terminal. In headed mode, it also turns the banner/panel title orange showing your custom message:
+
+```python
+def test_customer_list(logged_in_page, debug_pause):
+    # Steps...
+    debug_pause(page=logged_in_page, message="Review customers list")
+```
+
+---
+
 ## Shareable report — one HTML file for the team
 
 `pytest` writes `results.xml` automatically after every run (set in `pytest.ini`).
@@ -188,3 +213,5 @@ pip list
 | `--headed`           | Opens a real browser window                |
 | `--slowmo 1000`      | Slows browser actions by 1000ms            |
 | `--browser chromium` | Picks the browser to use                   |
+| `--playback`         | Enables the interactive draggable Playback panel |
+

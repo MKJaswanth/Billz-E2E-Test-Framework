@@ -1,17 +1,21 @@
+from __future__ import annotations
+
+from playwright.sync_api import Page
+
 from utils.constants import CATEGORIES_URL
 
 class CategoriesPage:
-    def __init__(self, page):
+    def __init__(self, page: Page) -> None:
         self.page = page
         self.categories_url = CATEGORIES_URL
         
-    def navigate(self):
-        return self.page.goto(self.categories_url)
+    def navigate(self) -> None:
+        self.page.goto(self.categories_url)
         
-    def is_categories_visible(self):
+    def is_categories_visible(self) -> bool:
         return self.page.get_by_role("button", name="Add Category").is_visible()
         
-    def add_category(self, name, sort_order=None, description=None):
+    def add_category(self, name: str, sort_order: int | None = None, description: str | None = None) -> None:
         self.page.get_by_role("button", name="Add Category").click()
         self.page.locator("input[name=\"name\"]").fill(name)
         if sort_order:
@@ -20,7 +24,7 @@ class CategoriesPage:
             self.page.locator("textarea[name=\"description\"]").fill(description)
         self.page.get_by_role("button", name="Create").click()
         
-    def search_category(self, category_name):
+    def search_category(self, category_name: str) -> bool:
         search_box = self.page.get_by_role("textbox", name="Search...")
         search_box.fill(category_name)
         search_box.press("Enter")
@@ -32,7 +36,7 @@ class CategoriesPage:
         except Exception:
             return False
 
-    def view_category(self, category_name):
+    def view_category(self, category_name: str) -> bool:
         self.search_category(category_name)
         category_row = self.page.locator("tr", has=self.page.get_by_text(category_name, exact=True))
         category_row.wait_for(state="visible", timeout=5000)
@@ -50,7 +54,7 @@ class CategoriesPage:
         self.page.get_by_role("button", name="Back to List").click()
         return is_visible
 
-    def edit_category(self, old_name, new_name):
+    def edit_category(self, old_name: str, new_name: str) -> bool:
         self.search_category(old_name)
         category_row = self.page.locator("tr", has=self.page.get_by_text(old_name, exact=True))
         category_row.wait_for(state="visible", timeout=5000)
@@ -66,7 +70,7 @@ class CategoriesPage:
         except Exception:
             return False
 
-    def delete_category(self, category_name):
+    def delete_category(self, category_name: str) -> bool:
         self.search_category(category_name)
         category_row = self.page.locator("tr", has=self.page.get_by_text(category_name, exact=True))
         category_row.wait_for(state="visible", timeout=5000)
@@ -81,7 +85,7 @@ class CategoriesPage:
         except Exception:
             return False
 
-    def retrieve_category(self, category_name):
+    def retrieve_category(self, category_name: str) -> bool:
         self.search_category(category_name)
         category_row = self.page.locator("tr", has=self.page.get_by_text(category_name, exact=True))
         category_row.wait_for(state="visible", timeout=5000)
@@ -96,11 +100,26 @@ class CategoriesPage:
         except Exception:
             return False
 
-    def validate_required_fields(self):
+    def validate_required_fields(self) -> bool:
         self.page.get_by_role("button", name="Add Category").click()
         self.page.get_by_role("button", name="Create").click()
         
         error_locator = self.page.get_by_text("Category Name is required")
+        try:
+            error_locator.wait_for(state="visible", timeout=5000)
+            is_valid = True
+        except Exception:
+            is_valid = False
+            
+        self.navigate()
+        return is_valid
+
+    def validate_duplicate_category(self, name: str) -> bool:
+        self.page.get_by_role("button", name="Add Category").click()
+        self.page.locator("input[name=\"name\"]").fill(name)
+        self.page.get_by_role("button", name="Create").click()
+        
+        error_locator = self.page.get_by_text("The name has already been taken.")
         try:
             error_locator.wait_for(state="visible", timeout=5000)
             is_valid = True
