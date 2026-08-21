@@ -56,14 +56,14 @@ def browser_context_args(browser_context_args):
     return {
         **browser_context_args,
         "ignore_https_errors": True,
-        "viewport": {"width": 1920, "height": 1080}
+        "viewport": {"width": 1280, "height": 720}
     }
 
 @pytest.fixture(scope="session")
 def auth_state(browser):
     context = browser.new_context(
         ignore_https_errors=True,
-        viewport={"width": 1920, "height": 1080}
+        viewport={"width": 1280, "height": 720}
     )
     page = context.new_page()
     login_page = LoginPage(page)
@@ -84,12 +84,12 @@ def logged_in_page(browser, auth_state, request):
     context_kwargs = {
         "storage_state": auth_state,
         "ignore_https_errors": True,
-        "viewport": {"width": 1920, "height": 1080},
+        "viewport": {"width": 1280, "height": 720},
     }
     if video_option in ["on", "retain-on-failure"]:
         os.makedirs("videos", exist_ok=True)
         context_kwargs["record_video_dir"] = "videos"
-        context_kwargs["record_video_size"] = {"width": 1920, "height": 1080}
+        context_kwargs["record_video_size"] = {"width": 1280, "height": 720}
 
     context = browser.new_context(**context_kwargs)
     tracing_option = request.config.getoption("--tracing", default="off")
@@ -111,12 +111,12 @@ def module_page(browser, auth_state, request):
     context_kwargs = {
         "storage_state": auth_state,
         "ignore_https_errors": True,
-        "viewport": {"width": 1920, "height": 1080},
+        "viewport": {"width": 1280, "height": 720},
     }
     if video_option in ["on", "retain-on-failure"]:
         os.makedirs("videos", exist_ok=True)
         context_kwargs["record_video_dir"] = "videos"
-        context_kwargs["record_video_size"] = {"width": 1920, "height": 1080}
+        context_kwargs["record_video_size"] = {"width": 1280, "height": 720}
 
     context = browser.new_context(**context_kwargs)
     page = context.new_page()
