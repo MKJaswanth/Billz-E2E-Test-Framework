@@ -1,56 +1,220 @@
 from __future__ import annotations
 
-from playwright.sync_api import Page
+import re
+from playwright.sync_api import Page, Response, expect
 
-from utils.constants import PRODUCT_ATTRIBUTES_URL
+from utils.constants import (
+    PRODUCT_ATTRIBUTES_URL,
+    LIST_TIMEOUT,
+    SETTLED_TIMEOUT,
+    UI_TIMEOUT,
+)
 from pages.common.form_page import has_validation_feedback
+
+DELETE_ICON_BUTTON = 'button[title="delete"]:has(i.bi-trash)'
+RETRIEVE_ICON_BUTTON = 'button[title="delete"]:has(i.bi-arrow-clockwise)'
+
 
 class ProductAttributesPage:
     def __init__(self, page: Page) -> None:
         self.page = page
         self.product_attributes_url = PRODUCT_ATTRIBUTES_URL
-        
+        self._list_api_url: str | None = None
+        self._list_headers: dict | None = None
+
+    @property
+    def add_button(self):
+        return self.page.get_by_role("button", name="Add Product Unit Attribute")
+
+    @property
+    def dialog(self):
+        return self.page.get_by_role("dialog")
+
+    @property
+    def create_button(self):
+        return self.dialog.get_by_role("button", name="Create")
+
+    @property
+    def name_input(self):
+        return self.dialog.locator('input[name="name"]')
+
+    @property
+    def sort_order_input(self):
+        return self.dialog.locator('input[name="sort_order"]')
+
+    @property
+    def unique_checkbox(self):
+        return self.dialog.locator('input[name="unique"]')
+
+    @property
+    def description_button(self):
+        return self.dialog.get_by_role("button", name="Add Description")
+
+    @property
+    def description_input(self):
+        return self.dialog.locator('textarea[name="notes"]')
+
+    @property
+    def update_button(self):
+        return self.dialog.get_by_role("button", name="Update")
+
+    @property
+    def delete_button(self):
+        return self.dialog.get_by_role("button", name="Delete").first
+
+    @property
+    def retrieve_button(self):
+        return self.dialog.get_by_role("button", name="Retrieve").first
+
+    @property
+    def close_button(self):
+        return self.dialog.locator(".btn-close")
+
+    @property
+    def toast(self):
+        return self.page.get_by_text("successfully")
+
+    @property
+    def error_locator(self):
+        return self.page.get_by_text("Name is required")
+
+    @property
+    def search_box(self):
+        return self.page.get_by_role("textbox", name="Search...")
+
+    @property
+    def toast_delete(self):
+        return self.page.get_by_text("Deleted successfully.")
+
+    @property
+    def toast_retrieve(self):
+        return self.page.get_by_text("Retrieved successfully.")
+
+    @property
+    def spinner(self):
+        return self.dialog.locator(".spinner-border")
+
+    @property
+    def name_too_long_error(self):
+        return self.page.get_by_text("Name cannot be longer than 255 characters")
+
+    def _is_list_response(self, response: Response) -> bool:
+        if (
+            response.request.method == "GET"
+            and response.request.resource_type in {"fetch", "xhr"}
+            and re.search(r"/product-unit-attributes(?:\?|$)", response.url) is not None
+        ):
+            self._list_api_url = response.url
+            self._list_headers = response.request.headers
+            return True
+        return False
+
+    @staticmethod
+    def _is_create_response(response: Response) -> bool:
+        return (
+            response.request.method == "POST"
+            and re.search(r"/product-unit-attributes(?:\?|$)", response.url) is not None
+        )
+
     def navigate(self) -> None:
-        self.page.goto(self.product_attributes_url)
-        
+        try:
+            with self.page.expect_response(self._is_list_response, timeout=LIST_TIMEOUT):
+                self.page.goto(self.product_attributes_url)
+        except Exception:
+            self.page.goto(self.product_attributes_url)
+        self.add_button.wait_for(state="visible", timeout=UI_TIMEOUT)
+
     def is_product_attributes_visible(self) -> bool:
-        return self.page.get_by_role("button", name="Add Product Unit Attribute").is_visible()
-        
-    def add_product_attribute(self, name: str, sort_order: int | None = None, unique: bool = False, description: str | None = None) -> None:
-        self.page.get_by_role("button", name="Add Product Unit Attribute").click()
-        
-        modal = self.page.get_by_role("dialog")
-        modal.wait_for(state="visible", timeout=5000)
-        
-        modal.locator("input[name=\"name\"]").fill(name)
-        
+        return self.add_button.is_visible()
+
+    def add_product_attribute(self, name: str, sort_order: int | None = None, unique: bool = False, description: str | None = None) -> Response | None:
+        self.add_button.click()
+        expect(self.dialog).to_be_visible()
+
+        self.name_input.fill(name)
         if sort_order is not None:
-            modal.locator("input[name=\"sort_order\"]").fill(str(sort_order))
-            
+            self.sort_order_input.fill(str(sort_order))
         if unique:
-            modal.locator("input[name=\"unique\"]").check()
+            self.unique_checkbox.check()
         if description:
-            modal.get_by_role("button", name="Add Description").click()
-            modal.locator("textarea[name=\"notes\"]").fill(description)
-            
-        modal.get_by_role("button", name="Create").click()
-        
+            self.description_button.click()
+            self.description_input.fill(description)
+
+        try:
+            with self.page.expect_response(self._is_create_response, timeout=LIST_TIMEOUT) as resp_info:
+                self.create_button.click()
+            return resp_info.value
+        except Exception:
+            self.create_button.click()
+            return None
+
     def search_product_attribute(self, name: str) -> bool:
-        search_box = self.page.get_by_role("textbox", name="Search...")
-        search_box.fill(name)
-        search_box.press("Enter")
-        self.page.wait_for_load_state("networkidle", timeout=5000)
+        if self.search_box.input_value() != name:
+            self.search_box.fill(name)
+            try:
+                with self.page.expect_response(self._is_list_response, timeout=LIST_TIMEOUT):
+                    self.search_box.press("Enter")
+            except Exception:
+                self.search_box.press("Enter")
+
         locator = self.page.get_by_text(name, exact=True).first
         try:
-            locator.wait_for(state="visible", timeout=5000)
+            expect(locator).to_be_visible(timeout=SETTLED_TIMEOUT)
             return True
         except Exception:
             return False
 
+    def validate_duplicate_name(self, name: str) -> bool:
+        self.add_button.click()
+        expect(self.dialog).to_be_visible()
+        self.name_input.fill(name)
+
+        resp = None
+        try:
+            with self.page.expect_response(self._is_create_response, timeout=LIST_TIMEOUT) as resp_info:
+                self.create_button.click()
+            resp = resp_info.value
+        except Exception:
+            pass
+
+        is_http_failed = resp is not None and resp.status in {400, 409, 422}
+        is_ui_feedback = has_validation_feedback(
+            self.page,
+            r"already exists",
+            r"already taken",
+            r"duplicate",
+            r"must be unique",
+            r"already been taken",
+        )
+        return is_http_failed and is_ui_feedback
+
+    def delete_attribute_by_api(self, name: str) -> bool:
+        try:
+            req_url = self._list_api_url or self.product_attributes_url
+            headers = self._list_headers or {}
+            response = self.page.request.get(req_url, headers=headers, params={"search": name})
+            if response.status == 200:
+                payload = response.json()
+                data = payload.get("data", {})
+                items = data.get("data", data if isinstance(data, list) else [])
+                for item in items:
+                    if item.get("name") == name:
+                        item_id = item.get("id")
+                        if item_id:
+                            base_api = req_url.split("?")[0]
+                            del_resp = self.page.request.delete(f"{base_api}/{item_id}", headers=headers)
+                            return del_resp.status in {200, 204}
+        except Exception as e:
+            print(f"API Teardown failed for {name}: {e}")
+        return False
+
     def has_row_actions(self, name: str) -> bool:
         self.search_product_attribute(name)
         row = self.page.locator("tr", has=self.page.get_by_text(name, exact=True))
-        row.wait_for(state="visible", timeout=5000)
+        try:
+            expect(row).to_be_visible(timeout=SETTLED_TIMEOUT)
+        except Exception:
+            return False
         return all(
             row.get_by_title(action).count() > 0
             for action in ("view", "edit", "delete")
@@ -59,41 +223,38 @@ class ProductAttributesPage:
     def view_product_attribute(self, name: str) -> bool:
         self.search_product_attribute(name)
         row = self.page.locator("tr", has=self.page.get_by_text(name, exact=True))
-        row.wait_for(state="visible", timeout=5000)
-        
+        expect(row).to_be_visible()
+
         row.get_by_title("view").click()
-        modal = self.page.get_by_role("dialog")
-        modal.wait_for(state="visible", timeout=5000)
-        
+        expect(self.dialog).to_be_visible()
+
         try:
-            modal.get_by_text(name, exact=True).first.wait_for(state="visible", timeout=5000)
+            expect(self.dialog.get_by_text(name, exact=True).first).to_be_visible(timeout=SETTLED_TIMEOUT)
             is_visible = True
         except Exception:
             is_visible = False
-            
-        modal.locator(".btn-close").click()
+
+        self.close_button.click()
         return is_visible
 
     def edit_product_attribute(self, old_name: str, new_name: str) -> bool:
         self.search_product_attribute(old_name)
         row = self.page.locator("tr", has=self.page.get_by_text(old_name, exact=True))
-        row.wait_for(state="visible", timeout=5000)
-        
+        expect(row).to_be_visible()
+
         row.get_by_title("edit").click()
-        modal = self.page.get_by_role("dialog")
-        modal.wait_for(state="visible", timeout=5000)
-        
+        expect(self.dialog).to_be_visible()
+
         try:
-            modal.locator(".spinner-border").wait_for(state="hidden", timeout=5000)
+            expect(self.spinner).to_be_hidden(timeout=SETTLED_TIMEOUT)
         except Exception:
             pass
-            
-        modal.locator("input[name=\"name\"]").fill(new_name)
-        modal.get_by_role("button", name="Update").click()
-        
-        toast = self.page.get_by_text("successfully")
+
+        self.name_input.fill(new_name)
+        self.update_button.click()
+
         try:
-            toast.wait_for(state="visible", timeout=5000)
+            expect(self.toast).to_be_visible(timeout=SETTLED_TIMEOUT)
             return True
         except Exception:
             return False
@@ -101,17 +262,14 @@ class ProductAttributesPage:
     def delete_product_attribute(self, name: str) -> bool:
         self.search_product_attribute(name)
         row = self.page.locator("tr", has=self.page.get_by_text(name, exact=True))
-        row.wait_for(state="visible", timeout=5000)
-        
-        row.get_by_title("delete").first.click()
-        modal = self.page.get_by_role("dialog")
-        modal.wait_for(state="visible", timeout=5000)
-        
-        modal.get_by_role("button", name="Delete").first.click()
-        
-        toast = self.page.get_by_text("Deleted successfully.")
+        expect(row).to_be_visible()
+
+        row.locator(DELETE_ICON_BUTTON).first.click()
+        expect(self.dialog).to_be_visible()
+        self.delete_button.click()
+
         try:
-            toast.wait_for(state="visible", timeout=10000)
+            expect(self.toast_delete).to_be_visible(timeout=LIST_TIMEOUT)
             return True
         except Exception:
             return False
@@ -119,44 +277,39 @@ class ProductAttributesPage:
     def retrieve_product_attribute(self, name: str) -> bool:
         self.search_product_attribute(name)
         row = self.page.locator("tr", has=self.page.get_by_text(name, exact=True))
-        row.wait_for(state="visible", timeout=5000)
-        
-        row.get_by_title("delete").first.click()
-        modal = self.page.get_by_role("dialog")
-        modal.wait_for(state="visible", timeout=5000)
-        
-        modal.get_by_role("button", name="Retrieve").first.click()
-        
-        toast = self.page.get_by_text("Retrieved successfully.")
+        expect(row).to_be_visible()
+
+        restore_btn = row.locator(RETRIEVE_ICON_BUTTON).first
+        expect(restore_btn).to_be_visible()
+        restore_btn.click()
+        expect(self.dialog).to_be_visible()
+        self.retrieve_button.click()
+
         try:
-            toast.wait_for(state="visible", timeout=10000)
+            expect(self.toast_retrieve).to_be_visible(timeout=LIST_TIMEOUT)
             return True
         except Exception:
             return False
 
     def validate_required_fields(self) -> bool:
-        self.page.get_by_role("button", name="Add Product Unit Attribute").click()
-        modal = self.page.get_by_role("dialog")
-        modal.wait_for(state="visible", timeout=5000)
-        
-        modal.get_by_role("button", name="Create").click()
-        
-        error_locator = self.page.get_by_text("Name is required")
+        self.add_button.click()
+        expect(self.dialog).to_be_visible()
+        self.create_button.click()
+
         try:
-            error_locator.wait_for(state="visible", timeout=5000)
+            expect(self.error_locator).to_be_visible(timeout=SETTLED_TIMEOUT)
             is_valid = True
         except Exception:
             is_valid = False
-            
+
         self.navigate()
         return is_valid
 
     def validate_name_too_long(self, name: str) -> bool:
-        self.page.get_by_role("button", name="Add Product Unit Attribute").click()
-        modal = self.page.get_by_role("dialog")
-        modal.wait_for(state="visible", timeout=5000)
-        modal.locator('input[name="name"]').fill(name)
-        modal.get_by_role("button", name="Create").click()
+        self.add_button.click()
+        expect(self.dialog).to_be_visible()
+        self.name_input.fill(name)
+        self.create_button.click()
         return has_validation_feedback(
             self.page,
             r"name.*(?:maximum|max|characters|too long)",

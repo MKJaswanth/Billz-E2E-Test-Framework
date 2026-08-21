@@ -173,14 +173,22 @@ class ExpensesPage:
     # ─── Filters ───────────────────────────────────────────────────────────────
 
     def _expand_filters(self) -> None:
-        """Expand the filters panel by clicking the 'Filters' toggle."""
+        """Expand the filters panel by clicking the toggle button."""
         try:
-            filters_toggle = self.page.get_by_text("Filters", exact=True).first
-            if filters_toggle.is_visible():
-                filters_toggle.click()
-                self.page.wait_for_timeout(500)
+            toggle = self.page.locator("button.filters-toggle-btn")
+            if toggle.is_visible():
+                # Check if already expanded
+                expanded = toggle.get_attribute("aria-expanded")
+                if expanded == "false":
+                    toggle.click()
+                    self.page.wait_for_timeout(500)
         except Exception:
-            pass
+            # Fallback: try aria-label
+            try:
+                self.page.get_by_label("Expand filters").click()
+                self.page.wait_for_timeout(500)
+            except Exception:
+                pass
 
     def filter_by_branch(self, branch_name: str) -> None:
         """Apply branch filter."""
@@ -192,7 +200,7 @@ class ExpensesPage:
         branch_input.click()
         self.page.get_by_role("option", name=branch_name).click()
         self.page.wait_for_timeout(300)
-        self.page.get_by_role("button", name="Filter").click()
+        self.page.locator(".filters-section-modern button[type='submit']").click()
         self.page.wait_for_load_state("networkidle", timeout=5000)
 
     def filter_by_category(self, category_name: str) -> None:
@@ -205,7 +213,7 @@ class ExpensesPage:
         cat_input.click()
         self.page.get_by_role("option", name=category_name).click()
         self.page.wait_for_timeout(300)
-        self.page.get_by_role("button", name="Filter").click()
+        self.page.locator(".filters-section-modern button[type='submit']").click()
         self.page.wait_for_load_state("networkidle", timeout=5000)
 
     def clear_search(self) -> None:

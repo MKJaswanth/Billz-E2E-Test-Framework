@@ -1,1 +1,0 @@
-# Day Books test placeholder

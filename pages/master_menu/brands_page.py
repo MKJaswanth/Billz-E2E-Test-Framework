@@ -1,150 +1,342 @@
 from __future__ import annotations
 
-from playwright.sync_api import Page
+import re
 
-from utils.constants import BRANDS_URL
+from playwright.sync_api import Page, Response
+
+from utils.constants import (
+    BRANDS_URL,
+    LIST_TIMEOUT,
+    SETTLED_TIMEOUT,
+    UI_TIMEOUT,
+)
 from pages.common.form_page import has_validation_feedback
 
-class BrandPage:
+
+DELETE_ICON_BUTTON = 'button[title="delete"]:has(i.bi-trash)'
+RETRIEVE_ICON_BUTTON = 'button[title="delete"]:has(i.bi-arrow-clockwise)'
+
+
+class BrandsPage:
     def __init__(self, page: Page) -> None:
         self.page = page
-        self.url = BRANDS_URL
+        self.brands_url = BRANDS_URL
+
+    @property
+    def add_button(self):
+        return self.page.get_by_role("button", name="Add Brand")
+
+    @property
+    def dialog(self):
+        return self.page.get_by_role("dialog")
+
+    @property
+    def search_box(self):
+        return self.page.get_by_role("textbox", name="Search...")
+
+    @property
+    def name_input(self):
+        return self.dialog.locator("input[name='name']")
+
+    @property
+    def description_input(self):
+        return self.dialog.locator('textarea[name="description"]')
+
+    @staticmethod
+    def _is_create_response(response: Response) -> bool:
+        return (
+            response.request.method == "POST"
+            and re.search(r"/brands(?:\?|$)", response.url) is not None
+        )
+
+    @staticmethod
+    def _is_list_response(response: Response) -> bool:
+        return (
+            response.request.method == "GET"
+            and response.request.resource_type in {"fetch", "xhr"}
+            and re.search(r"/brands(?:\?|$)", response.url) is not None
+        )
+
+    @staticmethod
+    def _is_show_response(response: Response) -> bool:
+        return (
+            response.request.method == "GET"
+            and re.search(r"/brands/\d+(?:\?|$)", response.url) is not None
+        )
+
+    @staticmethod
+    def _is_update_response(response: Response) -> bool:
+        return (
+            response.request.method in {"PUT", "PATCH", "POST"}
+            and re.search(r"/brands/\d+", response.url) is not None
+        )
+
+    @staticmethod
+    def _is_delete_response(response: Response) -> bool:
+        return (
+            response.request.method == "DELETE"
+            and re.search(r"/brands/\d+", response.url) is not None
+        )
 
     def navigate(self) -> None:
-        self.page.goto(self.url)
+        with self.page.expect_response(
+            self._is_list_response, timeout=LIST_TIMEOUT
+        ):
+            self.page.goto(self.brands_url)
+        self.add_button.wait_for(state="visible", timeout=UI_TIMEOUT)
 
     def is_brands_visible(self) -> bool:
-        return self.page.get_by_role("button", name="Add Brand").is_visible()
+        return self.add_button.is_visible()
 
-    def search_brand(self, brand_name: str) -> bool:
-        search_box = self.page.get_by_role("textbox", name="Search...")
-        search_box.fill(brand_name)
-        search_box.press("Enter")
-        self.page.wait_for_load_state("networkidle", timeout=5000)
-        locator = self.page.get_by_text(brand_name, exact=True).first
+    def _row(self, name: str):
+        return self.page.locator("tbody tr").filter(
+            has=self.page.get_by_text(name, exact=True)
+        ).first
+
+    def is_brand_active(self, name: str) -> bool:
+        if not self.search_brand(name):
+            return False
+        row = self._row(name)
+        delete_btn = row.locator(DELETE_ICON_BUTTON)
         try:
-            locator.wait_for(state="visible", timeout=5000)
+            delete_btn.wait_for(state="visible", timeout=SETTLED_TIMEOUT)
             return True
         except Exception:
             return False
-        
+
+    def search_brand(self, brand_name: str) -> bool:
+        if self.search_box.input_value() != brand_name:
+            with self.page.expect_response(
+                self._is_list_response, timeout=LIST_TIMEOUT
+            ):
+                self.search_box.fill(brand_name)
+        try:
+            self._row(brand_name).wait_for(
+                state="visible", timeout=SETTLED_TIMEOUT
+            )
+            return True
+        except Exception:
+            return False
 
     def add_brand(self, name: str, description: str) -> str:
-        self.page.get_by_role("button", name="Add Brand").click()
-        self.page.locator("input[name='name']").fill(name)
-        self.page.locator("textarea[name=\"description\"]").fill(description)
-        self.page.locator("button[type='submit']").click()
-        self.page.get_by_text("Brand created successfully").wait_for(state="visible" , timeout=3000)
+        self.add_button.click()
+        modal = self.dialog
+        modal.wait_for(state="visible", timeout=UI_TIMEOUT)
 
+        self.name_input.fill(name)
+        if description:
+            self.description_input.fill(description)
+
+        with self.page.expect_response(
+            self._is_list_response, timeout=LIST_TIMEOUT
+        ):
+            with self.page.expect_response(
+                self._is_create_response, timeout=LIST_TIMEOUT
+            ) as response_info:
+                modal.locator("button[type='submit']").click()
+
+        assert response_info.value.status in (200, 201)
+        modal.wait_for(state="hidden", timeout=UI_TIMEOUT)
         return name
 
-    def edit_brand(self, old_name: str, new_name: str) -> bool:
-        self.search_brand(old_name)
-        category_row = self.page.locator("tr", has=self.page.get_by_text(old_name, exact=True))
-        category_row.wait_for(state="visible", timeout=15000)
-        
-        category_row.get_by_title("edit").click()
-        self.page.locator("input[name=\"name\"]").fill(new_name)
-        self.page.get_by_role("button", name="Update").click()
-        
-        toast = self.page.get_by_text("Brand updated successfully")
-        try:
-            toast.wait_for(state="visible", timeout=15000)
-            return True
-        except Exception:
-            return False  
+    def edit_brand(
+        self, old_name: str, new_name: str, new_description: str | None = None
+    ) -> bool:
+        if not self.search_brand(old_name):
+            return False
 
-    def view_brand(self, name: str) -> bool:
-        self.search_brand(name)
-        category_row = self.page.locator("tr", has=self.page.get_by_text(name, exact=True))
-        category_row.wait_for(state="visible", timeout=15000)
-        
-        category_row.get_by_title("view").click()
-        modal = self.page.get_by_role("dialog")
-        modal.wait_for(state="visible", timeout=15000)
-        name_locator = modal.get_by_text(name, exact=True).first
-        try:
-            name_locator.wait_for(state="visible", timeout=13000)
-            is_name_visible = True
-        except Exception:
-            is_name_visible = False
-            
-    
-        self.page.get_by_role("button", name="Back to List").click()
-        return is_name_visible
+        row = self._row(old_name)
+        row.wait_for(state="visible", timeout=UI_TIMEOUT)
 
+        with self.page.expect_response(
+            self._is_show_response, timeout=LIST_TIMEOUT
+        ):
+            row.get_by_title("edit").click()
+        modal = self.dialog
+        modal.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        self.name_input.fill(new_name)
+        if new_description is not None:
+            self.description_input.fill(new_description)
+
+        with self.page.expect_response(
+            self._is_list_response, timeout=LIST_TIMEOUT
+        ):
+            with self.page.expect_response(
+                self._is_update_response, timeout=LIST_TIMEOUT
+            ) as response_info:
+                modal.get_by_role("button", name="Update").click()
+
+        if response_info.value.status not in (200, 204):
+            return False
+        modal.wait_for(state="hidden", timeout=UI_TIMEOUT)
+        return True
+
+    def view_brand(
+        self, name: str, expected_description: str | None = None
+    ) -> bool:
+        if not self.search_brand(name):
+            return False
+
+        row = self._row(name)
+        row.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        with self.page.expect_response(
+            self._is_show_response, timeout=LIST_TIMEOUT
+        ):
+            row.get_by_title("view").click()
+        modal = self.dialog
+        modal.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        try:
+            modal.get_by_text(name, exact=True).first.wait_for(
+                state="visible", timeout=UI_TIMEOUT
+            )
+            if expected_description:
+                modal.get_by_text(expected_description, exact=False).first.wait_for(
+                    state="visible", timeout=UI_TIMEOUT
+                )
+            is_visible = True
+        except Exception:
+            is_visible = False
+
+        modal.get_by_role("button", name="Back to List").click()
+        modal.wait_for(state="hidden", timeout=UI_TIMEOUT)
+        return is_visible
 
     def delete_brand(self, brand_name: str) -> bool:
-        self.search_brand(brand_name)
-        category_row = self.page.locator("tr", has=self.page.get_by_text(brand_name, exact=True))
-        category_row.wait_for(state="visible", timeout=15000)
-        
-        category_row.get_by_title("delete").click()
-        self.page.get_by_role("button", name="Delete Brand").click()
-        toast = self.page.get_by_text("Deleted successfully.")
-        try:
-            toast.wait_for(state="visible", timeout=15000)
-            return True
-        except Exception:
-            return False  
+        if not self.search_brand(brand_name):
+            return False
+
+        row = self._row(brand_name)
+        row.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        row.locator(DELETE_ICON_BUTTON).click()
+        modal = self.dialog
+        modal.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        with self.page.expect_response(
+            self._is_list_response, timeout=LIST_TIMEOUT
+        ):
+            with self.page.expect_response(
+                self._is_delete_response, timeout=LIST_TIMEOUT
+            ) as response_info:
+                modal.get_by_role("button", name="Delete Brand").click()
+
+        if response_info.value.status not in (200, 204):
+            return False
+        modal.wait_for(state="hidden", timeout=UI_TIMEOUT)
+        return True
 
     def retrieve_brand(self, brand_name: str) -> bool:
-        self.search_brand(brand_name)
-        brand_row = self.page.locator("tr", has=self.page.get_by_text(brand_name, exact=True))
-        brand_row.wait_for(state="visible", timeout=15000)
-        
-        brand_row.get_by_title("delete").click()
-        self.page.get_by_role("button", name="Delete Brand").click()
-        brand_row.get_by_title("delete").click()
-        self.page.get_by_role("button", name="Retrieve Brand").click()
-        toast = self.page.get_by_text("Retrieved successfully.")
-        try:
-            toast.wait_for(state="visible", timeout=15000)
-            return True
-        except Exception:
-            return False  
+        if not self.search_brand(brand_name):
+            return False
+
+        row = self._row(brand_name)
+        row.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        retrieve_btn = row.locator(RETRIEVE_ICON_BUTTON)
+        retrieve_btn.wait_for(state="visible", timeout=UI_TIMEOUT)
+        retrieve_btn.click()
+
+        modal = self.dialog
+        modal.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        with self.page.expect_response(
+            self._is_list_response, timeout=LIST_TIMEOUT
+        ):
+            with self.page.expect_response(
+                self._is_delete_response, timeout=LIST_TIMEOUT
+            ) as response_info:
+                modal.get_by_role(
+                    "button", name="Retrieve Brand"
+                ).click()
+
+        if response_info.value.status not in (200, 204):
+            return False
+        modal.wait_for(state="hidden", timeout=UI_TIMEOUT)
+        return True
 
     def validate_required_fields(self) -> bool:
-        self.page.get_by_role("button", name="Add Brand").click()
-        self.page.get_by_role("button", name="Create").click()
-        
-        error_locator = self.page.get_by_text("Brand Name is required")
+        self.add_button.click()
+        modal = self.dialog
+        modal.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        requests: list[str] = []
+        listener = lambda request: requests.append(request.url)
+        self.page.on("request", listener)
         try:
-            error_locator.wait_for(state="visible", timeout=15000)
-            is_valid = True
-        except Exception:
-            is_valid = False
-            
-        self.navigate()
+            modal.locator("button[type='submit']").click()
+            has_error = has_validation_feedback(
+                self.page,
+                r"Brand Name is required",
+                r"brand name.*required",
+                r"field is required",
+                r"required",
+            )
+            api_calls = [
+                url for url in requests if re.search(r"/brands(?:\?|$)", url)
+            ]
+            is_valid = has_error and len(api_calls) == 0
+        finally:
+            self.page.remove_listener("request", listener)
+
+        modal.get_by_role("button", name="Cancel").click()
+        modal.wait_for(state="hidden", timeout=UI_TIMEOUT)
         return is_valid
 
     def validate_blank_only_name(self) -> bool:
-        self.page.get_by_role("button", name="Add Brand").click()
-        self.page.locator("input[name='name']").fill("   ")
-        self.page.locator('textarea[name="description"]').fill("validation test")
-        self.page.locator("button[type='submit']").click()
-        return has_validation_feedback(
+        self.add_button.click()
+        modal = self.dialog
+        modal.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        self.name_input.fill("   ")
+        if self.description_input.is_visible():
+            self.description_input.fill("validation test")
+
+        with self.page.expect_response(
+            self._is_create_response, timeout=LIST_TIMEOUT
+        ) as response_info:
+            modal.locator("button[type='submit']").click()
+
+        has_error = has_validation_feedback(
             self.page,
+            r"Brand Name is required",
             r"brand name.*required",
             r"name.*blank",
             r"name.*empty",
+            r"required",
         )
-
-    def validate_name_is_trimmed(self, name: str, description: str) -> bool:
-        self.add_brand(f"  {name}  ", description)
-        return self.search_brand(name)
+        rejected = response_info.value.status in (400, 409, 422)
+        modal.get_by_role("button", name="Cancel").click()
+        modal.wait_for(state="hidden", timeout=UI_TIMEOUT)
+        return rejected and has_error
 
     def validate_duplicate_brand(self, name: str, description: str) -> bool:
-        self.page.get_by_role("button", name="Add Brand").click()
-        self.page.locator("input[name='name']").fill(name)
-        self.page.locator("textarea[name=\"description\"]").fill(description)
-        self.page.locator("button[type='submit']").click()
-        
-        return has_validation_feedback(
+        self.add_button.click()
+        modal = self.dialog
+        modal.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        self.name_input.fill(name)
+        if description:
+            self.description_input.fill(description)
+
+        with self.page.expect_response(
+            self._is_create_response, timeout=LIST_TIMEOUT
+        ) as response_info:
+            modal.locator("button[type='submit']").click()
+
+        rejected = response_info.value.status in (400, 409, 422)
+        has_error = has_validation_feedback(
             self.page,
             r"brand.*name.*already.*taken",
             r"name.*already.*taken",
             r"already been taken",
             r"duplicate",
         )
+        modal.get_by_role("button", name="Cancel").click()
+        modal.wait_for(state="hidden", timeout=UI_TIMEOUT)
+        return rejected and has_error
 
+
+BrandPage = BrandsPage

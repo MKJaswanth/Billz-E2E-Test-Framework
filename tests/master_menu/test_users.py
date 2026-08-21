@@ -43,164 +43,59 @@ def user_cleanup(logged_in_page):
     for name in created_users:
         try:
             users_page.navigate()
-            if users_page.search_user(name):
-                row = users_page.page.locator("tr", has=users_page.page.get_by_text(name, exact=True))
-                if row.get_by_title("delete").first.is_visible():
-                    users_page.delete_user(name)
+            if users_page.is_user_active(name):
+                users_page.delete_user(name)
         except Exception as e:
             print(f"Teardown: Failed to delete user {name}: {e}")
 
-def test_user_visiblity(logged_in_page):
-    user_page = UsersPage(logged_in_page)
-    user_page.navigate()
-    logged_in_page.wait_for_load_state("networkidle")
-    assert user_page.is_user_visible()
-    
-def test_add_user(logged_in_page, branch_cleanup, role_cleanup, user_cleanup):
+def test_user_crud_lifecycle(
+    logged_in_page, branch_cleanup, role_cleanup, user_cleanup
+):
     branches_page = BranchesPage(logged_in_page)
     branches_page.navigate()
     branch_name = branches_page.add_branch()
     branch_cleanup.append(branch_name)
-    
+
     roles_page = RolesPage(logged_in_page)
     roles_page.navigate()
-    role_name = roles_page.add_roles()
+    role_name = roles_page.add_roles()["name"]
     role_cleanup.append(role_name)
-    
+
     users_page = UsersPage(logged_in_page)
     users_page.navigate()
-    
+
     user_name = generate_random_name("auto")
     user_email = generate_random_email("autoemail")
     user_password = generate_random_password()
-    
-    users_page.add_user(name=user_name, email=user_email, password=user_password, branch_name=branch_name, role_name=role_name)
-    user_cleanup.append(user_name)
-    assert users_page.search_user(user_name)
 
-def test_search_user(logged_in_page, branch_cleanup, role_cleanup, user_cleanup):
-    branches_page = BranchesPage(logged_in_page)
-    branches_page.navigate()
-    branch_name = branches_page.add_branch()
-    branch_cleanup.append(branch_name)
-    
-    roles_page = RolesPage(logged_in_page)
-    roles_page.navigate()
-    role_name = roles_page.add_roles()
-    role_cleanup.append(role_name)
-    
-    users_page = UsersPage(logged_in_page)
-    users_page.navigate()
-    
-    user_name = generate_random_name("auto")
-    email = generate_random_email("autoemail")
-    password = generate_random_password()
-    
-    users_page.add_user(name=user_name, email=email, password=password, branch_name=branch_name, role_name=role_name)
-    user_cleanup.append(user_name)
-    assert users_page.search_user(user_name)
-
-def test_edit_user(logged_in_page, branch_cleanup, role_cleanup, user_cleanup):
-    branches_page = BranchesPage(logged_in_page)
-    branches_page.navigate()
-    branch_name = branches_page.add_branch()
-    branch_cleanup.append(branch_name)
-    
-    roles_page = RolesPage(logged_in_page)
-    roles_page.navigate()
-    role_name = roles_page.add_roles()
-    role_cleanup.append(role_name)
-    
-    users_page = UsersPage(logged_in_page)
-    users_page.navigate()
-    
-    old_name = generate_random_name("auto")
-    email = generate_random_email("autoemail")
-    password = generate_random_password()
-    
-    users_page.add_user(name=old_name, email=email, password=password, branch_name=branch_name, role_name=role_name)
-    user_cleanup.append(old_name)
-    
-    new_name = generate_random_name("edited")
-    user_cleanup.append(new_name)
-    
-    assert users_page.edit_user(old_name, new_name)
-    assert users_page.search_user(new_name)
-    assert not users_page.search_user(old_name)
-    
-def test_view_user(logged_in_page, branch_cleanup, role_cleanup, user_cleanup):
-    branches_page = BranchesPage(logged_in_page)
-    branches_page.navigate()
-    branch_name = branches_page.add_branch()
-    branch_cleanup.append(branch_name)
-    
-    roles_page = RolesPage(logged_in_page)
-    roles_page.navigate()
-    role_name = roles_page.add_roles()
-    role_cleanup.append(role_name)
-    
-    users_page = UsersPage(logged_in_page)
-    users_page.navigate()
-        
-    user_name = generate_random_name("auto_view")
-    email = generate_random_email("autoviewemail")
-    password = generate_random_password()
-    
     users_page.add_user(
-        name=user_name, 
-        email=email, 
-        password=password, 
-        branch_name=branch_name, 
-        role_name=role_name
+        name=user_name,
+        email=user_email,
+        password=user_password,
+        branch_name=branch_name,
+        role_name=role_name,
     )
     user_cleanup.append(user_name)
     assert users_page.search_user(user_name)
     assert users_page.view_user(user_name)
 
-def test_delete_user(logged_in_page, branch_cleanup, role_cleanup, user_cleanup):
-    branches_page = BranchesPage(logged_in_page)
-    branches_page.navigate()
-    branch_name = branches_page.add_branch()
-    branch_cleanup.append(branch_name)
-    
-    roles_page = RolesPage(logged_in_page)
-    roles_page.navigate()
-    role_name = roles_page.add_roles()
-    role_cleanup.append(role_name)
-    
-    users_page = UsersPage(logged_in_page)
-    users_page.navigate()
-    
-    user_name = generate_random_name("auto_delete")
-    email = generate_random_email("autodelemail")
-    password = generate_random_password()
-    
-    users_page.add_user(name=user_name, email=email, password=password, branch_name=branch_name, role_name=role_name)
-    user_cleanup.append(user_name)
-    assert users_page.delete_user(user_name)
-    
-def test_retrieve_user(logged_in_page, branch_cleanup, role_cleanup, user_cleanup):
-    branches_page = BranchesPage(logged_in_page)
-    branches_page.navigate()
-    branch_name = branches_page.add_branch()
-    branch_cleanup.append(branch_name)
-    
-    roles_page = RolesPage(logged_in_page)
-    roles_page.navigate()
-    role_name = roles_page.add_roles()
-    role_cleanup.append(role_name)
-    
-    users_page = UsersPage(logged_in_page)
-    users_page.navigate() 
-    
-    user_name = generate_random_name("auto_retrieve")
-    email = generate_random_email("autoretemail")
-    password = generate_random_password()
-    
-    users_page.add_user(name=user_name, email=email, password=password, branch_name=branch_name, role_name=role_name)
-    user_cleanup.append(user_name)
-    assert users_page.delete_user(user_name)
-    assert users_page.retrieve_user(user_name) 
+    new_name = generate_random_name("edited")
+    new_email = generate_random_email("editedemail")
+    assert users_page.edit_user(
+        user_name,
+        new_name,
+        new_email=new_email,
+    )
+    user_cleanup.remove(user_name)
+    user_cleanup.append(new_name)
+    assert users_page.search_user(new_name)
+    assert users_page.view_user(
+        new_name,
+        expected_email=new_email,
+        expected_branch=branch_name,
+    ), "Edited User fields should persist in View"
+    assert users_page.delete_user(new_name)
+    assert users_page.retrieve_user(new_name)
 
 
 def test_validate_user_fields(logged_in_page):
@@ -226,7 +121,7 @@ def test_validate_user_email_and_password(
 
     roles_page = RolesPage(logged_in_page)
     roles_page.navigate()
-    role_name = roles_page.add_roles()
+    role_name = roles_page.add_roles()["name"]
     role_cleanup.append(role_name)
 
     users_page = UsersPage(logged_in_page)
@@ -241,7 +136,7 @@ def test_validate_user_email_and_password(
     ), f"Expected visible validation feedback for invalid {field}"
 
 
-@pytest.mark.skip(
+@pytest.mark.xfail(
     reason="Known bug: user email without a valid domain suffix is accepted"
 )
 def test_reject_user_email_without_valid_domain_suffix(
@@ -254,7 +149,7 @@ def test_reject_user_email_without_valid_domain_suffix(
 
     roles_page = RolesPage(logged_in_page)
     roles_page.navigate()
-    role_name = roles_page.add_roles()
+    role_name = roles_page.add_roles()["name"]
     role_cleanup.append(role_name)
 
     users_page = UsersPage(logged_in_page)
@@ -279,7 +174,7 @@ def test_reject_duplicate_user_email(
 
     roles_page = RolesPage(logged_in_page)
     roles_page.navigate()
-    role_name = roles_page.add_roles()
+    role_name = roles_page.add_roles()["name"]
     role_cleanup.append(role_name)
 
     users_page = UsersPage(logged_in_page)

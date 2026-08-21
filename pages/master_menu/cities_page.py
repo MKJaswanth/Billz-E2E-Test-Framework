@@ -1,38 +1,350 @@
 from __future__ import annotations
 
-from playwright.sync_api import Page
+import re
+from urllib.parse import urlsplit, urlunsplit
 
-from utils.constants import CITY_URL
+from playwright.sync_api import Page, Response, expect
+
+from utils.constants import (
+    CITY_URL,
+    SEARCH_DEBOUNCE_MS,
+    LIST_TIMEOUT,
+    UI_TIMEOUT,
+    SETTLED_TIMEOUT,
+)
+from utils.random_data import generate_random_name
 from pages.common.form_page import has_validation_feedback
+
+# ── Selectors ────────────────────────────────────────────────────────────────
+DELETE_ICON_BUTTON = 'button[title="delete"]:has(i.bi-trash)'
+RETRIEVE_ICON_BUTTON = 'button[title="delete"]:has(i.bi-arrow-clockwise)'
+EDIT_ICON_BUTTON = 'button[title="edit"]'
+
+DELETED_TOAST = re.compile(r"deleted successfully", re.IGNORECASE)
+RETRIEVED_TOAST = re.compile(r"retrieved successfully", re.IGNORECASE)
+UPDATED_TOAST = re.compile(r"city updated successfully", re.IGNORECASE)
+CREATED_TOAST = re.compile(r"city created successfully", re.IGNORECASE)
 
 
 class CitiesPage:
     def __init__(self, page: Page) -> None:
         self.page = page
-        self.citypage_url = CITY_URL
+        self._list_api_url: str | None = None
+        self._list_headers: dict[str, str] = {}
+
+    # ── Properties (Rule 5: dynamic locators) ────────────────────────────────
+
+    @property
+    def add_city_button(self):
+        return self.page.get_by_role("button", name="Add City")
+
+    @property
+    def search_box(self):
+        return self.page.get_by_role("textbox", name="Search...")
+
+    @property
+    def city_name_input(self):
+        return self.page.locator('input[name="name"]')
+
+    @property
+    def create_button(self):
+        return self.page.get_by_role("button", name="Create")
+
+    @property
+    def update_button(self):
+        return self.page.get_by_role("button", name="Update")
+
+    @property
+    def state_select(self):
+        return self.page.locator(".react-select__input-container").nth(1)
+
+    @property
+    def is_default_checkbox(self):
+        return self.page.get_by_role("checkbox", name="Is default")
+
+    # ── Navigation & state ───────────────────────────────────────────────────
 
     def navigate(self) -> None:
-        self.page.goto(self.citypage_url)
+        with self.page.expect_response(
+            self._is_list_response, timeout=LIST_TIMEOUT
+        ) as response_info:
+            self.page.goto(CITY_URL)
+        response = response_info.value
+        parts = urlsplit(response.url)
+        self._list_api_url = urlunsplit(
+            (parts.scheme, parts.netloc, parts.path, "", "")
+        )
+        allowed_headers = {
+            "accept",
+            "authorization",
+            "x-tenant-id",
+            "x-financial-year-id",
+            "x-fy-start-date",
+            "x-fy-end-date",
+            "x-fy-mode",
+        }
+        self._list_headers = {
+            name: value
+            for name, value in response.request.all_headers().items()
+            if name.lower() in allowed_headers
+        }
+        ui_parts = urlsplit(CITY_URL)
+        origin = f"{ui_parts.scheme}://{ui_parts.netloc}"
+        self._list_headers["Origin"] = origin
+        self._list_headers["Referer"] = f"{origin}/"
+        self.add_city_button.wait_for(state="visible", timeout=UI_TIMEOUT)
 
     def is_cities_visible(self) -> bool:
-        return self.page.get_by_role("button", name="Add City").is_visible()
+        try:
+            self.add_city_button.wait_for(state="visible", timeout=UI_TIMEOUT)
+            return True
+        except Exception:
+            return False
 
-    def add_city(self, city_name: str) -> bool:
-        self.page.get_by_role("button", name="Add City").click()
-        self.page.locator(".react-select__input-container").nth(1).click()
+    # ── Internals ────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _is_list_response(response: Response) -> bool:
+        """GET .../cities or .../cities?<query> — the list fetch."""
+        return (
+            response.request.method == "GET"
+            and response.request.resource_type in {"fetch", "xhr"}
+            and re.search(r"/cities(\?|$)", response.url) is not None
+        )
+
+    @staticmethod
+    def _is_create_response(response: Response) -> bool:
+        """POST .../cities — the create request."""
+        return (
+            response.request.method == "POST"
+            and "/cities" in response.url
+        )
+
+    @staticmethod
+    def _is_update_response(response: Response) -> bool:
+        """PUT .../cities/<id> — the update request."""
+        return (
+            response.request.method == "PUT"
+            and re.search(r"/cities/\d+", response.url) is not None
+        )
+
+    @staticmethod
+    def _is_delete_response(response: Response) -> bool:
+        """DELETE .../cities/<id> — the delete/retrieve request."""
+        return (
+            response.request.method == "DELETE"
+            and re.search(r"/cities/\d+", response.url) is not None
+        )
+
+    def _row(self, city_name: str):
+        """The single table row for this city, scoped to the table body."""
+        return self.page.locator("tbody tr").filter(
+            has=self.page.get_by_text(city_name, exact=True)
+        ).first
+
+    def _toast_visible(self, pattern: re.Pattern[str]) -> bool:
+        try:
+            self.page.get_by_text(pattern).first.wait_for(
+                state="visible", timeout=UI_TIMEOUT
+            )
+            return True
+        except Exception:
+            return False
+
+    def filter_cities(self, query: str) -> None:
+        """Type into the search box and block until the debounced list request
+        has come back, so the table is genuinely filtered before we touch it."""
+        self.search_box.wait_for(state="visible", timeout=UI_TIMEOUT)
+        if self.search_box.input_value() == query:
+            return
+        with self.page.expect_response(self._is_list_response, timeout=LIST_TIMEOUT):
+            self.search_box.fill(query)
+
+    # ── Actions ──────────────────────────────────────────────────────────────
+
+    def add_city(
+        self,
+        city_name: str | None = None,
+        *,
+        is_default: bool = False,
+    ) -> str:
+        """Create a city and return its name. Verifies both toast and API 201."""
+        if city_name is None:
+            city_name = generate_random_name("City")
+
+        self.add_city_button.click()
+        self.state_select.click()
         self.page.get_by_role("option", name="Tamil Nadu").click()
-        self.page.locator("input[name=\"name\"]").fill(city_name)
-        self.page.get_by_role("button", name="Create").click()
-        self.page.get_by_text("City created successfully").wait_for()
-        self.page.wait_for_load_state("networkidle")
-        return self.page.get_by_text("City created successfully").is_visible()
+        self.city_name_input.fill(city_name)
+        if is_default:
+            self.is_default_checkbox.check()
+
+        with self.page.expect_response(self._is_create_response, timeout=LIST_TIMEOUT) as resp_info:
+            self.create_button.click()
+
+        assert resp_info.value.status in (200, 201), (
+            f"City create API returned {resp_info.value.status}"
+        )
+        assert self._toast_visible(CREATED_TOAST), (
+            "City success toast should be visible after creation"
+        )
+        return city_name
+
+    def search_city(self, city_name: str) -> bool:
+        """Filter and verify a city row is visible."""
+        self.filter_cities(city_name)
+        try:
+            self._row(city_name).wait_for(state="visible", timeout=SETTLED_TIMEOUT)
+            return True
+        except Exception:
+            return False
+
+    def edit_city(self, old_city_name: str, new_city_name: str) -> bool:
+        """Edit a city name and verify via API response and toast."""
+        self.filter_cities(old_city_name)
+        city_row = self._row(old_city_name)
+        city_row.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        city_row.locator(EDIT_ICON_BUTTON).click(timeout=UI_TIMEOUT)
+        self.city_name_input.fill(new_city_name)
+
+        with self.page.expect_response(self._is_update_response, timeout=LIST_TIMEOUT) as resp_info:
+            self.update_button.click()
+
+        if resp_info.value.status not in (200, 204):
+            return False
+
+        return self._toast_visible(UPDATED_TOAST)
+
+    def verify_city_name(self, city_name: str) -> bool:
+        """Reopen Edit because Cities has no View action."""
+        self.filter_cities(city_name)
+        city_row = self._row(city_name)
+        city_row.wait_for(state="visible", timeout=UI_TIMEOUT)
+        city_row.locator(EDIT_ICON_BUTTON).click(timeout=UI_TIMEOUT)
+
+        try:
+            expect(self.city_name_input).to_have_value(
+                city_name, timeout=SETTLED_TIMEOUT
+            )
+            persisted = True
+        except Exception:
+            persisted = False
+
+        self.page.get_by_role("button", name="Cancel").click()
+        return persisted
+
+    def delete_city(self, city_name: str) -> bool:
+        """Soft-delete a city and verify via API response and toast."""
+        self.filter_cities(city_name)
+        city_row = self._row(city_name)
+        city_row.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        city_row.locator(DELETE_ICON_BUTTON).click(timeout=UI_TIMEOUT)
+
+        with self.page.expect_response(self._is_delete_response, timeout=LIST_TIMEOUT) as resp_info:
+            self.page.get_by_role("button", name="Delete City").click()
+
+        if resp_info.value.status not in (200, 204):
+            return False
+
+        return self._toast_visible(DELETED_TOAST)
+
+    def retrieve_city(self, city_name: str) -> bool:
+        """Restore a soft-deleted city and verify via API response and toast."""
+        city_row = self._row(city_name)
+        retrieve_button = city_row.locator(RETRIEVE_ICON_BUTTON)
+        retrieve_button.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        retrieve_button.click(timeout=UI_TIMEOUT)
+
+        with self.page.expect_response(self._is_delete_response, timeout=LIST_TIMEOUT) as resp_info:
+            self.page.get_by_role("button", name="Retrieve City").click()
+
+        if resp_info.value.status not in (200, 204):
+            return False
+
+        return self._toast_visible(RETRIEVED_TOAST)
+
+    def set_city_as_default(self, city_name: str) -> bool:
+        """Mark a city as the default via the edit modal."""
+        self.filter_cities(city_name)
+        city_row = self._row(city_name)
+        city_row.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        city_row.locator(EDIT_ICON_BUTTON).click(timeout=UI_TIMEOUT)
+        self.is_default_checkbox.check()
+
+        with self.page.expect_response(self._is_update_response, timeout=LIST_TIMEOUT) as resp_info:
+            self.update_button.click()
+
+        if resp_info.value.status not in (200, 204):
+            return False
+
+        return self._toast_visible(UPDATED_TOAST)
+
+    def is_city_default(self, city_name: str) -> bool:
+        self.navigate()
+        self.filter_cities(city_name)
+        city_row = self._row(city_name)
+        city_row.wait_for(state="visible", timeout=UI_TIMEOUT)
+        return city_row.get_by_text("Yes", exact=True).is_visible()
+
+    def get_default_city_name(self, state_name: str) -> str | None:
+        if not self._list_api_url:
+            raise AssertionError("Cities list API URL was not captured")
+
+        response = self.page.request.get(
+            self._list_api_url,
+            headers=self._list_headers,
+            params={"is_default": "true", "per_page": 100},
+        )
+        assert response.status == 200, (
+            f"Default City list API returned {response.status}: {response.text()}"
+        )
+        payload = response.json()
+        data = payload.get("data", {})
+        cities = data.get("data", data if isinstance(data, list) else [])
+        for city in cities:
+            if city.get("state", {}).get("name") == state_name:
+                return city.get("name")
+        return None
+
+    def delete_city_expect_fail(self, city_name: str) -> bool:
+        """Attempt to delete a city that is in use and verify it is blocked."""
+        self.filter_cities(city_name)
+        city_row = self._row(city_name)
+        city_row.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        city_row.locator(DELETE_ICON_BUTTON).click(timeout=UI_TIMEOUT)
+
+        with self.page.expect_response(self._is_delete_response, timeout=LIST_TIMEOUT) as resp_info:
+            self.page.get_by_role("button", name="Delete City").click()
+
+        # Expect a non-success status (e.g. 422, 409, 500)
+        if resp_info.value.status in (200, 204):
+            return False
+
+        # Verify city still exists after navigating back
+        self.navigate()
+        return self.search_city(city_name)
+
+    # ── Validation helpers ───────────────────────────────────────────────────
 
     def validate_duplicate_city(self, city_name: str) -> bool:
-        self.page.get_by_role("button", name="Add City").click()
-        self.page.locator(".react-select__input-container").nth(1).click()
+        """Submit a duplicate city and verify validation feedback + API rejection."""
+        self.add_city_button.click()
+        self.state_select.click()
         self.page.get_by_role("option", name="Tamil Nadu").click()
-        self.page.locator('input[name="name"]').fill(city_name)
-        self.page.get_by_role("button", name="Create").click()
+        self.city_name_input.fill(city_name)
+
+        with self.page.expect_response(self._is_create_response, timeout=LIST_TIMEOUT) as resp_info:
+            self.create_button.click()
+
+        assert resp_info.value.status == 422, (
+            f"Expected 422 for duplicate city, got {resp_info.value.status}"
+        )
+
         return has_validation_feedback(
             self.page,
             r"already been taken",
@@ -40,80 +352,70 @@ class CitiesPage:
             r"duplicate",
         )
 
+    def validate_required_name(self) -> bool:
+        submitted_requests = []
+
+        def record_submission(request):
+            if (
+                request.method == "POST"
+                and re.search(r"/cities(?:\?|$)", request.url)
+            ):
+                submitted_requests.append(request)
+
+        self.add_city_button.click()
+        self.page.on("request", record_submission)
+        try:
+            self.create_button.click()
+            error = self.city_name_input.locator("xpath=..").locator(
+                ".invalid-feedback"
+            )
+            error.get_by_text("Name is required", exact=True).wait_for(
+                state="visible", timeout=UI_TIMEOUT
+            )
+        finally:
+            self.page.remove_listener("request", record_submission)
+
+        return not submitted_requests
+
+    def validate_name_too_long(self, city_name: str) -> bool:
+        submitted_requests = []
+
+        def record_submission(request):
+            if (
+                request.method == "POST"
+                and re.search(r"/cities(?:\?|$)", request.url)
+            ):
+                submitted_requests.append(request)
+
+        self.add_city_button.click()
+        self.city_name_input.fill(city_name)
+        self.page.on("request", record_submission)
+        try:
+            self.create_button.click()
+            error = self.city_name_input.locator("xpath=..").locator(
+                ".invalid-feedback"
+            )
+            error.wait_for(state="visible", timeout=UI_TIMEOUT)
+            message = error.inner_text()
+        finally:
+            self.page.remove_listener("request", record_submission)
+
+        return (
+            not submitted_requests
+            and "100" in message
+            and re.search(r"at most|maximum|exceed|long", message, re.I) is not None
+        )
+
     def validate_invalid_city_name(self, city_name: str) -> bool:
-        self.page.get_by_role("button", name="Add City").click()
-        self.page.locator(".react-select__input-container").nth(1).click()
+        """Submit a city with invalid characters and verify validation feedback."""
+        self.add_city_button.click()
+        self.state_select.click()
         self.page.get_by_role("option", name="Tamil Nadu").click()
-        self.page.locator('input[name="name"]').fill(city_name)
-        self.page.get_by_role("button", name="Create").click()
+        self.city_name_input.fill(city_name)
+        self.create_button.click()
 
         return has_validation_feedback(
             self.page,
             r"city.*(?:letters|alphabet|invalid|numbers)",
             r"name.*(?:letters|alphabet|invalid|numbers)",
         )
-
-    def is_city_added(self, city_name: str) -> bool:
-        self.page.get_by_role("textbox", name="Search...").fill(city_name)
-        city_locator = self.page.get_by_text(city_name, exact=True).first
-        try:
-            city_locator.wait_for(state="visible", timeout=5000)
-            return True
-        except Exception:
-            return False
-    
-    def search_city(self, city_name: str) -> bool:
-        search_box = self.page.get_by_role("textbox", name="Search...")
-        search_box.fill(city_name)
-        search_box.press("Enter")
-        self.page.wait_for_load_state("networkidle", timeout=5000)
-        locator = self.page.get_by_text(city_name, exact=True).first
-        try:
-            locator.wait_for(state="visible", timeout=5000)
-            return True
-        except Exception:
-            return False
-        
-    
-    def delete_city(self, city_name: str) -> bool:
-        self.page.get_by_role("textbox", name="Search...").fill(city_name)
-        city_row = self.page.locator("tr", has=self.page.get_by_text(city_name, exact=True))
-        city_row.wait_for(state="visible", timeout=5000) 
-        city_row.get_by_title("delete").click()
-        #self.page.get_by_title("delete").nth(0).click()
-        self.page.get_by_role("button", name="Delete City").click()
-        self.page.get_by_text("Deleted successfully.").wait_for()
-        return self.page.get_by_text("Deleted successfully.").is_visible()
-    
-    def retrieve_city(self, city_name: str) -> bool:
-        self.page.get_by_role("textbox", name="Search...").fill(city_name)
-        city_row = self.page.locator("tr", has=self.page.get_by_text(city_name, exact=True))
-        city_row.wait_for(state="visible", timeout=5000) 
-        self.page.get_by_title("delete").first.click()
-        self.page.get_by_role("button", name="Retrieve City").click()
-        self.page.get_by_text("Retrieved successfully.").wait_for()
-        return self.page.get_by_text("Retrieved successfully.").is_visible()
-    
-    def edit_city(self, old_city_name: str, new_city_name: str) -> bool:
-        self.page.get_by_role("textbox", name="Search...").fill(old_city_name)
-        city_row = self.page.locator("tr", has=self.page.get_by_text(old_city_name, exact=True))
-        city_row.wait_for(state="visible", timeout=5000) 
-        self.page.get_by_title("edit").click()
-        self.page.locator("input[name=\"name\"]").fill(new_city_name)
-        self.page.get_by_role("button", name="Update").click()
-        self.page.get_by_text("City updated successfully").wait_for()
-        return self.page.get_by_text("City updated successfully").is_visible()
-
-    def delete_city_expect_fail(self, city_name: str) -> bool:
-        self.page.get_by_role("textbox", name="Search...").fill(city_name)
-        city_row = self.page.locator("tr", has=self.page.get_by_text(city_name, exact=True))
-        city_row.wait_for(state="visible", timeout=5000) 
-        city_row.get_by_title("delete").click()
-        self.page.get_by_role("button", name="Delete City").click()
-        
-        # We expect a failure/error toast or the modal remaining open with an error
-        # In either case, the city row should still exist in the table listing after a reload
-        self.page.wait_for_timeout(2000)
-        self.navigate()
-        return self.search_city(city_name)
-

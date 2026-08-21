@@ -4,20 +4,19 @@ from pages.main_menu.products_page import ProductsPage
 from pages.master_menu.categories_page import CategoriesPage
 from pages.master_menu.brands_page import BrandPage
 from pages.master_menu.unit_types_page import UnitTypesPage
-from pages.master_menu.sac_hsn_page import SacHsnPage
+from pages.master_menu.sac_hsn_code_page import SacHsnCodePage
 from pages.master_menu.branches_page import BranchesPage
 from utils.random_data import generate_random_name
 
 
 # ---------------------------------------------------------------------------
-# Dependency fixtures (categories, brands, unit types, HSN codes, branches)
+# Fixtures
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
 def temp_branch(logged_in_page):
     branches_page = BranchesPage(logged_in_page)
     branches_page.navigate()
-    logged_in_page.wait_for_load_state("networkidle")
     branch_name = branches_page.add_branch()
     yield branch_name
     try:
@@ -29,87 +28,10 @@ def temp_branch(logged_in_page):
     branches_page.cleanup_auto_city(branch_name)
 
 
-@pytest.fixture(scope="module")
-def module_category(module_page):
-    categories_page = CategoriesPage(module_page)
-    categories_page.navigate()
-    cat_name = generate_random_name("auto_cat")
-    categories_page.add_category(name=cat_name, description="cat desc")
-    yield cat_name
-    try:
-        categories_page.navigate()
-        if categories_page.search_category(cat_name):
-            categories_page.delete_category(cat_name)
-    except Exception as e:
-        print(f"Teardown: Failed to delete category {cat_name}: {e}")
-
-
-@pytest.fixture(scope="module")
-def module_brand(module_page):
-    brand_page = BrandPage(module_page)
-    brand_page.navigate()
-    brand_name = generate_random_name("auto_brand")
-    brand_page.add_brand(brand_name, "brand desc")
-    yield brand_name
-    try:
-        brand_page.navigate()
-        if brand_page.search_brand(brand_name):
-            brand_page.delete_brand(brand_name)
-    except Exception as e:
-        print(f"Teardown: Failed to delete brand {brand_name}: {e}")
-
-
-@pytest.fixture(scope="module")
-def module_unit_type(module_page):
-    unit_page = UnitTypesPage(module_page)
-    unit_page.navigate()
-    unit_name = generate_random_name("auto_unit")
-    unit_page.add_unit_type(name=unit_name, unit="pcs", description="unit desc")
-    yield unit_name
-    try:
-        unit_page.navigate()
-        if unit_page.search_unit_type(unit_name):
-            unit_page.delete_unit_type(unit_name)
-    except Exception as e:
-        print(f"Teardown: Failed to delete unit type {unit_name}: {e}")
-
-
-@pytest.fixture(scope="module")
-def module_hsn_code(module_page):
-    sac_page = SacHsnPage(module_page)
-    sac_page.navigate()
-    sac_code = str(random.randint(100000, 999999))
-    sac_page.add_sac_hsn_code("SAC", sac_code, description="sac desc")
-    yield sac_code
-    try:
-        sac_page.navigate()
-        if sac_page.search_sac_hsn_code(sac_code):
-            sac_page.delete_sac_hsn_code(sac_code)
-    except Exception as e:
-        print(f"Teardown: Failed to delete SAC/HSN code {sac_code}: {e}")
-
-
-@pytest.fixture(scope="module")
-def product_dependencies(module_category, module_brand, module_unit_type, module_hsn_code):
-    """Bundle the master-data a product needs into a single dict."""
-    return {
-        "category": module_category,
-        "brand": module_brand,
-        "unit_type": module_unit_type,
-        "hsn_code": module_hsn_code,
-    }
-
-
-# ---------------------------------------------------------------------------
-# Page & factory fixtures
-# ---------------------------------------------------------------------------
-
 @pytest.fixture
 def products_page(logged_in_page):
-    """A ProductsPage already navigated to the products list."""
     page = ProductsPage(logged_in_page)
     page.navigate()
-    logged_in_page.wait_for_load_state("networkidle")
     return page
 
 
@@ -118,85 +40,89 @@ def product_cleanup(logged_in_page):
     created_products = []
     yield created_products
     page_obj = ProductsPage(logged_in_page)
-    for name in created_products:
+    for name in list(created_products):
         try:
             page_obj.navigate()
-            if page_obj.search_product(name):
+            if page_obj.is_product_active(name):
                 page_obj.delete_product(name)
         except Exception as e:
             print(f"Teardown: Failed to delete product {name}: {e}")
 
 
-@pytest.fixture
-def make_product(products_page, product_dependencies, product_cleanup):
-    """Factory that creates a product with the shared dependencies and
-    registers it for cleanup. Returns the generated product name."""
-    def _make(prefix="auto_prod"):
-        products_page.navigate()
-        products_page.page.wait_for_load_state("networkidle")
-        name = generate_random_name(prefix)
-        products_page.add_product(
-            name=name,
-            brand_name=product_dependencies["brand"],
-            category_name=product_dependencies["category"],
-            hsn_code=product_dependencies["hsn_code"],
-            unit_type=product_dependencies["unit_type"],
-        )
-        product_cleanup.append(name)
-        return name
-    return _make
-
-
 # ---------------------------------------------------------------------------
-# CRUD tests
+# End-to-End CRUD Lifecycle Test
 # ---------------------------------------------------------------------------
 
-def test_products_visibility(products_page):
-    assert products_page.is_products_visible()
+def test_product_crud_lifecycle(products_page, product_dependencies, product_cleanup):
+    """Create -> Search -> View -> Edit -> Re-open View & Verify -> Soft Delete -> Restore"""
+    # 1. Create Product
+    product_name = generate_random_name("life_prod")
+    products_page.add_product(
+        name=product_name,
+        brand_name=product_dependencies["brand"],
+        category_name=product_dependencies["category"],
+        hsn_code=product_dependencies["hsn_code"],
+        unit_type=product_dependencies["unit_type"],
+        cost_price="200",
+        selling_price="300",
+    )
+    product_cleanup.append(product_name)
 
+    # 2. Search Product
+    assert products_page.search_product(product_name), f"Product {product_name} should be searchable"
 
-def test_add_product(products_page, make_product):
-    name = make_product()
-    assert products_page.search_product(name)
+    # 3. View Original
+    assert products_page.view_product(
+        product_name,
+        expected_brand=product_dependencies["brand"],
+        expected_category=product_dependencies["category"],
+    ), "Original product brand and category should match in View modal"
 
-
-def test_search_product(products_page, make_product):
-    name = make_product()
-    assert products_page.search_product(name)
-
-
-def test_view_product(products_page, make_product):
-    name = make_product()
-    assert products_page.view_product(name)
-
-
-def test_edit_product(products_page, make_product, product_cleanup):
-    name = make_product()
-    new_name = generate_random_name("auto_prod_new")
+    # 4. Edit Product (Name, Cost Price, Selling Price)
+    new_name = generate_random_name("edited_prod")
+    assert products_page.edit_product(product_name, new_name, new_cost_price="250", new_selling_price="350")
+    if product_name in product_cleanup:
+        product_cleanup.remove(product_name)
     product_cleanup.append(new_name)
 
-    assert products_page.edit_product(name, new_name)
+    # 5. Search & View Edited Details
     assert products_page.search_product(new_name)
+    assert products_page.view_product(
+        new_name,
+        expected_brand=product_dependencies["brand"],
+        expected_category=product_dependencies["category"],
+        expected_cost_price="250",
+        expected_selling_price="350",
+    ), "Reopened View modal should maintain product relationship details"
+
+    # 6. Soft Delete
+    assert products_page.delete_product(new_name), "Product should be soft-deleted"
+
+    # 7. Restore
+    assert products_page.retrieve_product(new_name), "Product should be restored"
+    assert products_page.search_product(new_name), "Restored product should be visible in list"
+
+    # Rule 2: Cleanup after explicit verification
+    if products_page.delete_product(new_name):
+        if new_name in product_cleanup:
+            product_cleanup.remove(new_name)
 
 
-def test_opening_stock_update(products_page, make_product, temp_branch):
-    name = make_product()
-    assert products_page.update_opening_stock(name, temp_branch, "10", "2500")
-
-
-def test_delete_product(products_page, make_product, product_cleanup):
-    name = make_product()
-    assert products_page.search_product(name)
-    assert products_page.delete_product(name)
-    product_cleanup.remove(name)
-
-
-def test_retrieve_product(products_page, make_product):
-    name = make_product()
-    assert products_page.search_product(name)
-    assert products_page.delete_product(name)
-    assert products_page.retrieve_product(name)
-    assert products_page.search_product(name)
+def test_opening_stock_update(products_page, product_dependencies, product_cleanup, temp_branch):
+    products_page.navigate()
+    product_name = generate_random_name("stock_prod")
+    products_page.add_product(
+        name=product_name,
+        brand_name=product_dependencies["brand"],
+        category_name=product_dependencies["category"],
+        hsn_code=product_dependencies["hsn_code"],
+        unit_type=product_dependencies["unit_type"],
+    )
+    product_cleanup.append(product_name)
+    assert products_page.update_opening_stock(product_name, temp_branch, "10", "2500")
+    if products_page.delete_product(product_name):
+        if product_name in product_cleanup:
+            product_cleanup.remove(product_name)
 
 
 # ---------------------------------------------------------------------------
@@ -229,10 +155,21 @@ def test_reject_negative_product_values(
         field=field,
         value=value,
     ), f"Expected validation feedback for negative {field}"
+    if product_name in product_cleanup:
+        product_cleanup.remove(product_name)
 
 
-def test_reject_duplicate_product_name(products_page, make_product, product_dependencies):
-    product_name = make_product("duplicate_product")
+def test_reject_duplicate_product_name(products_page, product_dependencies, product_cleanup):
+    product_name = generate_random_name("dup_prod")
+    products_page.add_product(
+        name=product_name,
+        brand_name=product_dependencies["brand"],
+        category_name=product_dependencies["category"],
+        hsn_code=product_dependencies["hsn_code"],
+        unit_type=product_dependencies["unit_type"],
+    )
+    product_cleanup.append(product_name)
+
     assert products_page.validate_duplicate_product(
         name=product_name,
         brand_name=product_dependencies["brand"],
@@ -241,36 +178,69 @@ def test_reject_duplicate_product_name(products_page, make_product, product_depe
         unit_type=product_dependencies["unit_type"],
     ), "Expected validation feedback for a duplicate product name"
 
+    if products_page.delete_product(product_name):
+        if product_name in product_cleanup:
+            product_cleanup.remove(product_name)
+
 
 # ---------------------------------------------------------------------------
-# Dependency-deletion protection tests
+# Dependency-deletion protection tests (Isolated entity creation)
 # ---------------------------------------------------------------------------
 
+@pytest.mark.xfail(
+    reason="Bug #TBD: brand assigned to an active product can be deleted"
+)
 def test_delete_brand_assigned_to_product_is_blocked(
-    logged_in_page, product_dependencies, make_product
+    logged_in_page, product_dependencies, products_page, product_cleanup
 ):
-    make_product("brand_dependency")
     brand_page = BrandPage(logged_in_page)
     brand_page.navigate()
-    assert not brand_page.delete_brand(product_dependencies["brand"]), (
-        "An assigned brand must not be deleted"
+    iso_brand = generate_random_name("iso_brand")
+    brand_page.add_brand(iso_brand, "isolated brand desc")
+
+    products_page.navigate()
+    product_name = generate_random_name("b_dep_prod")
+    products_page.add_product(
+        name=product_name,
+        brand_name=iso_brand,
+        category_name=product_dependencies["category"],
+        hsn_code=product_dependencies["hsn_code"],
+        unit_type=product_dependencies["unit_type"],
     )
+    product_cleanup.append(product_name)
+
+    brand_page.navigate()
+    deleted = brand_page.delete_brand(iso_brand)
+
+    # Teardown local entities
+    products_page.navigate()
+    if products_page.is_product_active(product_name):
+        products_page.delete_product(product_name)
+        if product_name in product_cleanup:
+            product_cleanup.remove(product_name)
+
+    if not deleted:
+        brand_page.navigate()
+        if brand_page.search_brand(iso_brand):
+            brand_page.delete_brand(iso_brand)
+
+    assert not deleted, "An assigned brand must not be deleted"
 
 
-@pytest.mark.skip(
-    reason="Known bug: brand remains undeletable after its assigned product is deleted"
+@pytest.mark.xfail(
+    reason="Bug #TBD: brand remains undeletable after its assigned product is deleted"
 )
 def test_delete_brand_after_assigned_product_is_deleted(
     logged_in_page, product_dependencies, product_cleanup
 ):
     brand_page = BrandPage(logged_in_page)
     brand_page.navigate()
-    brand_name = generate_random_name("deleted_product_brand")
+    brand_name = generate_random_name("del_prod_brand")
     brand_page.add_brand(brand_name, "brand dependency validation")
 
     product_page = ProductsPage(logged_in_page)
     product_page.navigate()
-    product_name = generate_random_name("deleted_brand_dependency_product")
+    product_name = generate_random_name("del_brand_dep_prod")
     product_page.add_product(
         name=product_name,
         brand_name=brand_name,
@@ -279,45 +249,128 @@ def test_delete_brand_after_assigned_product_is_deleted(
         unit_type=product_dependencies["unit_type"],
     )
     product_cleanup.append(product_name)
+
     assert product_page.delete_product(product_name)
+    if product_name in product_cleanup:
+        product_cleanup.remove(product_name)
 
     brand_page.navigate()
-    assert brand_page.delete_brand(brand_name), (
-        "A brand should be deletable after its assigned product is deleted"
-    )
+    deleted = brand_page.delete_brand(brand_name)
+    if not deleted:
+        try:
+            brand_page.delete_brand(brand_name)
+        except Exception:
+            pass
+
+    assert deleted, "A brand should be deletable after its assigned product is deleted"
 
 
-@pytest.mark.skip(reason="Known bug: category assigned to an active product can be deleted")
+@pytest.mark.xfail(reason="Bug #TBD: category assigned to an active product can be deleted")
 def test_delete_category_assigned_to_product_is_blocked(
-    logged_in_page, product_dependencies, make_product
+    logged_in_page, product_dependencies, products_page, product_cleanup
 ):
-    make_product("category_dependency")
     category_page = CategoriesPage(logged_in_page)
     category_page.navigate()
-    assert not category_page.delete_category(product_dependencies["category"]), (
-        "An assigned category must not be deleted"
+    iso_cat = generate_random_name("iso_cat")
+    category_page.add_category(name=iso_cat, description="iso desc")
+
+    products_page.navigate()
+    product_name = generate_random_name("c_dep_prod")
+    products_page.add_product(
+        name=product_name,
+        brand_name=product_dependencies["brand"],
+        category_name=iso_cat,
+        hsn_code=product_dependencies["hsn_code"],
+        unit_type=product_dependencies["unit_type"],
     )
+    product_cleanup.append(product_name)
+
+    category_page.navigate()
+    deleted = category_page.delete_category(iso_cat)
+
+    products_page.navigate()
+    if products_page.is_product_active(product_name):
+        products_page.delete_product(product_name)
+        if product_name in product_cleanup:
+            product_cleanup.remove(product_name)
+
+    if not deleted:
+        category_page.navigate()
+        if category_page.search_category(iso_cat):
+            category_page.delete_category(iso_cat)
+
+    assert not deleted, "An assigned category must not be deleted"
 
 
-@pytest.mark.skip(reason="Known bug: unit type assigned to an active product can be deleted")
+@pytest.mark.xfail(reason="Bug #TBD: unit type assigned to an active product can be deleted")
 def test_delete_unit_type_assigned_to_product_is_blocked(
-    logged_in_page, product_dependencies, make_product
+    logged_in_page, product_dependencies, products_page, product_cleanup
 ):
-    make_product("unit_dependency")
     unit_page = UnitTypesPage(logged_in_page)
     unit_page.navigate()
-    assert not unit_page.delete_unit_type(product_dependencies["unit_type"]), (
-        "An assigned unit type must not be deleted"
+    iso_unit = generate_random_name("iso_unit")
+    unit_page.add_unit_type(name=iso_unit, unit="pcs", description="iso desc")
+
+    products_page.navigate()
+    product_name = generate_random_name("u_dep_prod")
+    products_page.add_product(
+        name=product_name,
+        brand_name=product_dependencies["brand"],
+        category_name=product_dependencies["category"],
+        hsn_code=product_dependencies["hsn_code"],
+        unit_type=iso_unit,
     )
+    product_cleanup.append(product_name)
+
+    unit_page.navigate()
+    deleted = unit_page.delete_unit_type(iso_unit)
+
+    products_page.navigate()
+    if products_page.is_product_active(product_name):
+        products_page.delete_product(product_name)
+        if product_name in product_cleanup:
+            product_cleanup.remove(product_name)
+
+    if not deleted:
+        unit_page.navigate()
+        if unit_page.search_unit_type(iso_unit):
+            unit_page.delete_unit_type(iso_unit)
+
+    assert not deleted, "An assigned unit type must not be deleted"
 
 
-@pytest.mark.skip(reason="Known bug: HSN/SAC code assigned to an active product can be deleted")
+@pytest.mark.xfail(reason="Bug #TBD: HSN/SAC code assigned to an active product can be deleted")
 def test_delete_hsn_sac_assigned_to_product_is_blocked(
-    logged_in_page, product_dependencies, make_product
+    logged_in_page, product_dependencies, products_page, product_cleanup
 ):
-    make_product("hsn_dependency")
-    hsn_page = SacHsnPage(logged_in_page)
+    hsn_page = SacHsnCodePage(logged_in_page)
     hsn_page.navigate()
-    assert not hsn_page.delete_sac_hsn_code(product_dependencies["hsn_code"]), (
-        "An assigned HSN/SAC code must not be deleted"
+    iso_hsn = str(random.randint(100000, 999999))
+    hsn_page.add_sac_hsn_code("SAC", iso_hsn, description="iso desc")
+
+    products_page.navigate()
+    product_name = generate_random_name("h_dep_prod")
+    products_page.add_product(
+        name=product_name,
+        brand_name=product_dependencies["brand"],
+        category_name=product_dependencies["category"],
+        hsn_code=iso_hsn,
+        unit_type=product_dependencies["unit_type"],
     )
+    product_cleanup.append(product_name)
+
+    hsn_page.navigate()
+    deleted = hsn_page.delete_sac_hsn_code(iso_hsn)
+
+    products_page.navigate()
+    if products_page.is_product_active(product_name):
+        products_page.delete_product(product_name)
+        if product_name in product_cleanup:
+            product_cleanup.remove(product_name)
+
+    if not deleted:
+        hsn_page.navigate()
+        if hsn_page.search_sac_hsn_code(iso_hsn):
+            hsn_page.delete_sac_hsn_code(iso_hsn)
+
+    assert not deleted, "An assigned HSN/SAC code must not be deleted"

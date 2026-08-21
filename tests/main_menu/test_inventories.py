@@ -13,7 +13,7 @@ from pages.master_menu.cities_page import CitiesPage
 from pages.master_menu.categories_page import CategoriesPage
 from pages.master_menu.brands_page import BrandPage
 from pages.master_menu.unit_types_page import UnitTypesPage
-from pages.master_menu.sac_hsn_page import SacHsnPage
+from pages.master_menu.sac_hsn_code_page import SacHsnCodePage
 from utils.random_data import (
     generate_random_name,
     generate_random_email,
@@ -87,7 +87,7 @@ def module_unit_type(module_page):
 
 @pytest.fixture(scope="module")
 def module_hsn_code(module_page):
-    sac_page = SacHsnPage(module_page)
+    sac_page = SacHsnCodePage(module_page)
     sac_page.navigate()
     sac_code = str(random.randint(100000, 999999))
     sac_page.add_sac_hsn_code("SAC", sac_code, description="inventory tests")
@@ -237,6 +237,8 @@ def test_search_product_in_inventory(logged_in_page, module_product):
     )
 
 
+from decimal import Decimal
+
 def test_inventory_shows_correct_opening_stock(logged_in_page, module_product):
     """Verify the opening stock values are correctly displayed."""
     inventories_page = InventoriesPage(logged_in_page)
@@ -245,8 +247,8 @@ def test_inventory_shows_correct_opening_stock(logged_in_page, module_product):
     available = inventories_page.get_available_stock_number(module_product)
     total = inventories_page.get_total_stock_number(module_product)
 
-    assert total == 20, f"Expected total stock 20, got {total}"
-    assert available == 20, f"Expected available stock 20, got {available}"
+    assert total == Decimal("20"), f"Expected total stock 20, got {total}"
+    assert available == Decimal("20"), f"Expected available stock 20, got {available}"
 
 
 def test_inventory_stock_increases_after_purchase(
@@ -278,8 +280,8 @@ def test_inventory_stock_increases_after_purchase(
     inventories_page.navigate()
     stock_after = inventories_page.get_available_stock_number(module_product)
 
-    assert stock_after == stock_before + 10, (
-        f"Expected stock {stock_before + 10} after purchase, got {stock_after}"
+    assert stock_after == stock_before + Decimal("10"), (
+        f"Expected stock {stock_before + Decimal('10')} after purchase, got {stock_after}"
     )
 
 
@@ -309,9 +311,10 @@ def test_inventory_stock_decreases_after_sale(
     inventories_page.navigate()
     stock_after = inventories_page.get_available_stock_number(module_product)
 
-    assert stock_after == stock_before - 5, (
-        f"Expected stock {stock_before - 5} after sale, got {stock_after}"
+    assert stock_after == stock_before - Decimal("5"), (
+        f"Expected stock {stock_before - Decimal('5')} after sale, got {stock_after}"
     )
+
 
 
 def test_filter_inventory_by_branch(logged_in_page, module_product, module_branch):
@@ -347,13 +350,11 @@ def test_filter_low_stock_only(logged_in_page, module_product):
 
     inventories_page.toggle_low_stock_filter()
 
-    # Our product has plenty of stock, so it should NOT appear in low-stock filter
-    is_visible = inventories_page.is_product_in_table(module_product)
-    # If it IS visible, it means the product is marked as low stock (possible if
-    # threshold is configured). Either way this test validates the filter works.
-    # We primarily verify the page didn't error out and rendered results.
+    # The fixture sets low_stock=5 and creates 20 units, making this deterministic.
+    assert not inventories_page.is_product_in_table(module_product), (
+        f"Well-stocked product '{module_product}' should be excluded"
+    )
     inventories_page.clear_filters()
-    # No hard assertion — the filter's behavior depends on server-configured thresholds
 
 
 def test_clear_filters_restores_full_list(logged_in_page, module_product):

@@ -1,125 +1,272 @@
 from __future__ import annotations
 
-from playwright.sync_api import Page
+import re
 
-from utils.constants import ATTRIBUTE_KEYS_URL
+from playwright.sync_api import Page, Response
+
+from pages.common.form_page import has_validation_feedback
+from utils.constants import (
+    ATTRIBUTE_KEYS_URL,
+    LIST_TIMEOUT,
+    SETTLED_TIMEOUT,
+    UI_TIMEOUT,
+)
+
+
+DELETE_ICON_BUTTON = 'button[title="delete"]:has(i.bi-trash)'
+RETRIEVE_ICON_BUTTON = 'button[title="delete"]:has(i.bi-arrow-clockwise)'
+
 
 class AttributeKeysPage:
     def __init__(self, page: Page) -> None:
         self.page = page
         self.attribute_keys_url = ATTRIBUTE_KEYS_URL
-        
+
+    @property
+    def add_button(self):
+        return self.page.get_by_role("button", name="Add Attribute Keys")
+
+    @property
+    def dialog(self):
+        return self.page.get_by_role("dialog")
+
+    @property
+    def search_box(self):
+        return self.page.get_by_role("textbox", name="Search...")
+
+    @property
+    def name_input(self):
+        return self.dialog.locator('input[name="name"]')
+
+    @property
+    def sort_order_input(self):
+        return self.dialog.locator('input[name="sort_order"]')
+
+    @property
+    def description_input(self):
+        return self.dialog.locator('textarea[name="description"]')
+
+    @staticmethod
+    def _is_list_response(response: Response) -> bool:
+        return (
+            response.request.method == "GET"
+            and response.request.resource_type in {"fetch", "xhr"}
+            and re.search(r"/attribute-keys(?:\?|$)", response.url) is not None
+        )
+
+    @staticmethod
+    def _is_create_response(response: Response) -> bool:
+        return (
+            response.request.method == "POST"
+            and re.search(r"/attribute-keys(?:\?|$)", response.url) is not None
+        )
+
+    @staticmethod
+    def _is_update_response(response: Response) -> bool:
+        return (
+            response.request.method in {"PUT", "PATCH", "POST"}
+            and re.search(r"/attribute-keys/\d+", response.url) is not None
+        )
+
+    @staticmethod
+    def _is_delete_response(response: Response) -> bool:
+        return (
+            response.request.method == "DELETE"
+            and re.search(r"/attribute-keys/\d+", response.url) is not None
+        )
+
     def navigate(self) -> None:
-        self.page.goto(self.attribute_keys_url)
-        
+        with self.page.expect_response(
+            self._is_list_response, timeout=LIST_TIMEOUT
+        ):
+            self.page.goto(self.attribute_keys_url)
+        self.add_button.wait_for(state="visible", timeout=UI_TIMEOUT)
+
     def is_attribute_keys_visible(self) -> bool:
-        return self.page.get_by_role("button", name="Add Attribute Keys").is_visible()
-        
-    def add_attribute_key(self, name: str, sort_order: int | None = None, description: str | None = None) -> None:
-        self.page.get_by_role("button", name="Add Attribute Keys").click()
-        self.page.locator("input[name=\"name\"]").fill(name)
-        if sort_order:
-            self.page.locator("input[name=\"sort_order\"]").fill(str(sort_order))
-        if description:
-            self.page.get_by_role("button", name="Add Description").click()
-            self.page.locator("textarea[name=\"description\"]").fill(description)
-        self.page.get_by_role("button", name="Create").click()
-        
-    def search_attribute_key(self, name: str) -> bool:
-        search_box = self.page.get_by_role("textbox", name="Search...")
-        search_box.fill(name)
-        search_box.press("Enter")
-        self.page.wait_for_load_state("networkidle", timeout=5000)
-        locator = self.page.get_by_text(name, exact=True).first
+        return self.add_button.is_visible()
+
+    def _row(self, name: str):
+        return self.page.locator("tbody tr").filter(
+            has=self.page.get_by_text(name, exact=True)
+        ).first
+
+    def is_attribute_key_active(self, name: str) -> bool:
+        if not self.search_attribute_key(name):
+            return False
+        row = self._row(name)
+        delete_btn = row.locator(DELETE_ICON_BUTTON)
         try:
-            locator.wait_for(state="visible", timeout=5000)
+            delete_btn.wait_for(state="visible", timeout=SETTLED_TIMEOUT)
             return True
         except Exception:
             return False
 
-    def view_attribute_key(self, name: str) -> bool:
-        self.search_attribute_key(name)
-        row = self.page.locator("tr", has=self.page.get_by_text(name, exact=True))
-        row.wait_for(state="visible", timeout=5000)
-        
-        row.get_by_title("view").click()
-        modal = self.page.get_by_role("dialog")
-        modal.wait_for(state="visible", timeout=5000)
-        
+    def search_attribute_key(self, name: str) -> bool:
+        if self.search_box.input_value() != name:
+            with self.page.expect_response(
+                self._is_list_response, timeout=LIST_TIMEOUT
+            ):
+                self.search_box.fill(name)
         try:
-            modal.get_by_text(name, exact=True).first.wait_for(state="visible", timeout=5000)
+            self._row(name).wait_for(state="visible", timeout=SETTLED_TIMEOUT)
+            return True
+        except Exception:
+            return False
+
+    def add_attribute_key(
+        self,
+        name: str,
+        sort_order: int | str | None = None,
+        description: str | None = None,
+    ) -> None:
+        self.add_button.click()
+        modal = self.dialog
+        modal.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        self.name_input.fill(name)
+        if sort_order is not None:
+            self.sort_order_input.fill(str(sort_order))
+        if description:
+            add_desc_btn = modal.get_by_role("button", name="Add Description")
+            if add_desc_btn.is_visible():
+                add_desc_btn.click()
+            self.description_input.fill(description)
+
+        with self.page.expect_response(
+            self._is_create_response, timeout=LIST_TIMEOUT
+        ) as response_info:
+            modal.get_by_role("button", name="Create").click()
+
+        assert response_info.value.status in (200, 201)
+        modal.wait_for(state="hidden", timeout=UI_TIMEOUT)
+
+    def view_attribute_key(
+        self, name: str, expected_description: str | None = None
+    ) -> bool:
+        if not self.search_attribute_key(name):
+            return False
+
+        row = self._row(name)
+        row.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        row.get_by_title("view").click()
+        modal = self.dialog
+        modal.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        try:
+            modal.get_by_text(name, exact=True).first.wait_for(
+                state="visible", timeout=UI_TIMEOUT
+            )
+            if expected_description:
+                modal.get_by_text(expected_description, exact=False).first.wait_for(
+                    state="visible", timeout=UI_TIMEOUT
+                )
             is_visible = True
         except Exception:
             is_visible = False
-            
-        self.page.get_by_role("button", name="Back to List").click()
+
+        modal.get_by_role("button", name="Back to List").click()
+        modal.wait_for(state="hidden", timeout=UI_TIMEOUT)
         return is_visible
 
-    def edit_attribute_key(self, old_name: str, new_name: str) -> bool:
-        self.search_attribute_key(old_name)
-        row = self.page.locator("tr", has=self.page.get_by_text(old_name, exact=True))
-        row.wait_for(state="visible", timeout=5000)
-        
-        row.get_by_title("edit").click()
-        modal = self.page.get_by_role("dialog")
-        modal.wait_for(state="visible", timeout=5000)
-        
-        self.page.locator("input[name=\"name\"]").fill(new_name)
-        self.page.get_by_role("button", name="Update").click()
-        
-        toast = self.page.get_by_text("Attribute key updated")
-        try:
-            toast.wait_for(state="visible", timeout=5000)
-            return True
-        except Exception:
+    def edit_attribute_key(
+        self, old_name: str, new_name: str, new_description: str | None = None
+    ) -> bool:
+        if not self.search_attribute_key(old_name):
             return False
+
+        row = self._row(old_name)
+        row.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        row.get_by_title("edit").click()
+        modal = self.dialog
+        modal.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        self.name_input.fill(new_name)
+        if new_description is not None and self.description_input.is_visible():
+            self.description_input.fill(new_description)
+
+        with self.page.expect_response(
+            self._is_update_response, timeout=LIST_TIMEOUT
+        ) as response_info:
+            modal.get_by_role("button", name="Update").click()
+
+        if response_info.value.status not in (200, 204):
+            return False
+        modal.wait_for(state="hidden", timeout=UI_TIMEOUT)
+        return True
 
     def delete_attribute_key(self, name: str) -> bool:
-        self.search_attribute_key(name)
-        row = self.page.locator("tr", has=self.page.get_by_text(name, exact=True))
-        row.wait_for(state="visible", timeout=5000)
-        
-        row.get_by_title("delete").first.click()
-        modal = self.page.get_by_role("dialog")
-        modal.wait_for(state="visible", timeout=5000)
-        
-        modal.get_by_role("button", name="Delete Attribute Key").click()
-        
-        toast = self.page.get_by_text("Deleted successfully.")
-        try:
-            toast.wait_for(state="visible", timeout=10000)
-            return True
-        except Exception:
+        if not self.search_attribute_key(name):
             return False
 
+        row = self._row(name)
+        row.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        row.locator(DELETE_ICON_BUTTON).click()
+        modal = self.dialog
+        modal.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        with self.page.expect_response(
+            self._is_delete_response, timeout=LIST_TIMEOUT
+        ) as response_info:
+            modal.get_by_role("button", name="Delete Attribute Key").click()
+
+        if response_info.value.status not in (200, 204):
+            return False
+        modal.wait_for(state="hidden", timeout=UI_TIMEOUT)
+        return True
+
     def retrieve_attribute_key(self, name: str) -> bool:
-        self.search_attribute_key(name)
-        row = self.page.locator("tr", has=self.page.get_by_text(name, exact=True))
-        row.wait_for(state="visible", timeout=5000)
-        
-        row.get_by_title("delete").first.click()
-        modal = self.page.get_by_role("dialog")
-        modal.wait_for(state="visible", timeout=5000)
-        
+        if not self.search_attribute_key(name):
+            return False
+
+        row = self._row(name)
+        row.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        retrieve_btn = row.locator(RETRIEVE_ICON_BUTTON)
+        retrieve_btn.wait_for(state="visible", timeout=UI_TIMEOUT)
+        retrieve_btn.click()
+
+        modal = self.dialog
+        modal.wait_for(state="visible", timeout=UI_TIMEOUT)
+
         modal.get_by_role("button", name="Retrieve Attribute Key").click()
-        
-        toast = self.page.get_by_text("Retrieved successfully.")
+
+        toast = self.page.get_by_text("Retrieved successfully.").first
         try:
-            toast.wait_for(state="visible", timeout=10000)
+            toast.wait_for(state="visible", timeout=UI_TIMEOUT)
+            modal.wait_for(state="hidden", timeout=UI_TIMEOUT)
             return True
         except Exception:
             return False
 
     def validate_required_fields(self) -> bool:
-        self.page.get_by_role("button", name="Add Attribute Keys").click()
-        self.page.get_by_role("button", name="Create").click()
-        
-        error_locator = self.page.get_by_text("Name is required")
+        self.add_button.click()
+        modal = self.dialog
+        modal.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        requests: list[str] = []
+        listener = lambda request: requests.append(request.url)
+        self.page.on("request", listener)
         try:
-            error_locator.wait_for(state="visible", timeout=5000)
-            is_valid = True
-        except Exception:
-            is_valid = False
-            
-        self.navigate()
+            modal.get_by_role("button", name="Create").click()
+            has_error = has_validation_feedback(
+                self.page,
+                r"Name is required",
+                r"Attribute Key Name is required",
+                r"field is required",
+                r"required",
+            )
+            api_calls = [
+                url
+                for url in requests
+                if re.search(r"/attribute-keys(?:\?|$)", url)
+            ]
+            is_valid = has_error and len(api_calls) == 0
+        finally:
+            self.page.remove_listener("request", listener)
+
+        modal.get_by_role("button", name="Cancel").click()
+        modal.wait_for(state="hidden", timeout=UI_TIMEOUT)
         return is_valid

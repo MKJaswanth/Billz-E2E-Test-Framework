@@ -1,17 +1,79 @@
 from __future__ import annotations
 
-from playwright.sync_api import Page
+import re
 
-from utils.constants import BANK_ACCOUNTS_URL
+from playwright.sync_api import Page, Response
+
+from utils.constants import (
+    BANK_ACCOUNTS_URL,
+    LIST_TIMEOUT,
+    SETTLED_TIMEOUT,
+    UI_TIMEOUT,
+)
 from pages.common.form_page import has_validation_feedback
+
+
+DELETE_ICON_BUTTON = 'button[title="delete"]:has(i.bi-trash)'
+RETRIEVE_ICON_BUTTON = 'button[title="delete"]:has(i.bi-arrow-clockwise)'
+
 
 class BankAccountPage:
     def __init__(self, page: Page) -> None:
-        self.page = page 
+        self.page = page
         self.bank_account_url = BANK_ACCOUNTS_URL
 
+    @staticmethod
+    def _is_list_response(response: Response) -> bool:
+        return (
+            response.request.method == "GET"
+            and response.request.resource_type in {"fetch", "xhr"}
+            and re.search(r"/bank-accounts(?:\?|$)", response.url) is not None
+        )
+
+    @staticmethod
+    def _is_create_response(response: Response) -> bool:
+        return (
+            response.request.method == "POST"
+            and re.search(r"/bank-accounts(?:\?|$)", response.url) is not None
+        )
+
+    @staticmethod
+    def _is_show_response(response: Response) -> bool:
+        return (
+            response.request.method == "GET"
+            and re.search(r"/bank-accounts/\d+(?:\?|$)", response.url)
+            is not None
+        )
+
+    @staticmethod
+    def _is_update_response(response: Response) -> bool:
+        return (
+            response.request.method == "PUT"
+            and re.search(r"/bank-accounts/\d+(?:\?|$)", response.url)
+            is not None
+        )
+
+    @staticmethod
+    def _is_delete_response(response: Response) -> bool:
+        return (
+            response.request.method == "DELETE"
+            and re.search(r"/bank-accounts/\d+(?:\?|$)", response.url)
+            is not None
+        )
+
+    def _row(self, bank_name: str):
+        return self.page.locator("tbody tr").filter(
+            has=self.page.get_by_text(bank_name, exact=True)
+        ).first
+
     def navigate(self) -> None:
-        self.page.goto(self.bank_account_url)
+        with self.page.expect_response(
+            self._is_list_response, timeout=LIST_TIMEOUT
+        ):
+            self.page.goto(self.bank_account_url)
+        self.page.get_by_role("button", name="Add Bank Account").wait_for(
+            state="visible", timeout=UI_TIMEOUT
+        )
 
     def is_bank_account_visible(self) -> bool:
         return self.page.get_by_role("button", name="Add Bank Account").is_visible()
@@ -20,39 +82,74 @@ class BankAccountPage:
         self.page.get_by_role("button", name="Add Bank Account").click()
         
         modal = self.page.get_by_role("dialog")
-        modal.wait_for(state="visible", timeout=5000)
+        modal.wait_for(state="visible", timeout=UI_TIMEOUT)
         
         modal.locator("input[name=\"bank_name\"]").fill(bank_name)
         modal.locator("input[name=\"branch\"]").fill(branch)
         modal.locator("input[name=\"account_number\"]").fill(account_number)
         modal.locator("input[name=\"ifsc_code\"]").fill(ifsc_code)
         
-        modal.get_by_role("button", name="Create").click()
-        modal.wait_for(state="hidden", timeout=5000)
+        with self.page.expect_response(
+            self._is_list_response, timeout=LIST_TIMEOUT
+        ):
+            with self.page.expect_response(
+                self._is_create_response, timeout=LIST_TIMEOUT
+            ) as response_info:
+                modal.get_by_role("button", name="Create").click()
+
+        assert response_info.value.status in (200, 201), (
+            f"Bank account create API returned {response_info.value.status}"
+        )
+        modal.wait_for(state="hidden", timeout=UI_TIMEOUT)
 
     def search_bank_account(self, bank_name: str) -> bool:
         search_box = self.page.get_by_role("textbox", name="Search...")
-        search_box.fill(bank_name)
-        search_box.press("Enter")
-        self.page.wait_for_load_state("networkidle", timeout=5000)
-        locator = self.page.get_by_text(bank_name, exact=True).first
+        if search_box.input_value() != bank_name:
+            with self.page.expect_response(
+                self._is_list_response, timeout=LIST_TIMEOUT
+            ):
+                search_box.fill(bank_name)
+
+        locator = self._row(bank_name)
         try:
-            locator.wait_for(state="visible", timeout=5000)
+            locator.wait_for(state="visible", timeout=SETTLED_TIMEOUT)
             return True
         except Exception:
             return False
 
-    def view_bank_account(self, bank_name: str) -> bool:
-        self.search_bank_account(bank_name)
-        row = self.page.locator("tr", has=self.page.get_by_text(bank_name, exact=True))
-        row.wait_for(state="visible", timeout=5000)
-        
-        row.get_by_title("view").click()
+    def view_bank_account(
+        self,
+        bank_name: str,
+        *,
+        expected_branch: str | None = None,
+        expected_account_number: str | None = None,
+        expected_ifsc: str | None = None,
+    ) -> bool:
+        if not self.search_bank_account(bank_name):
+            return False
+
+        with self.page.expect_response(
+            self._is_show_response, timeout=LIST_TIMEOUT
+        ):
+            self._row(bank_name).get_by_title("view").click()
         modal = self.page.get_by_role("dialog")
-        modal.wait_for(state="visible", timeout=5000)
+        modal.wait_for(state="visible", timeout=UI_TIMEOUT)
         
         try:
-            modal.get_by_text(bank_name, exact=True).first.wait_for(state="visible", timeout=5000)
+            modal.get_by_text(bank_name, exact=True).first.wait_for(
+                state="visible", timeout=UI_TIMEOUT
+            )
+            for expected_value in (
+                expected_branch,
+                expected_account_number,
+                expected_ifsc,
+            ):
+                if expected_value is not None:
+                    modal.get_by_text(
+                        expected_value, exact=True
+                    ).first.wait_for(
+                        state="visible", timeout=UI_TIMEOUT
+                    )
             is_visible = True
         except Exception:
             is_visible = False
@@ -65,60 +162,95 @@ class BankAccountPage:
             
         return is_visible
 
-    def edit_bank_account(self, old_name: str, new_name: str) -> bool:
-        self.search_bank_account(old_name)
-        row = self.page.locator("tr", has=self.page.get_by_text(old_name, exact=True))
-        row.wait_for(state="visible", timeout=5000)
-        
-        row.get_by_title("edit").click()
+    def edit_bank_account(
+        self,
+        old_name: str,
+        new_name: str,
+        *,
+        new_branch: str | None = None,
+        new_account_number: str | None = None,
+        new_ifsc: str | None = None,
+    ) -> bool:
+        if not self.search_bank_account(old_name):
+            return False
+
+        with self.page.expect_response(
+            self._is_show_response, timeout=LIST_TIMEOUT
+        ):
+            self._row(old_name).get_by_title("edit").click()
         modal = self.page.get_by_role("dialog")
-        modal.wait_for(state="visible", timeout=5000)
+        modal.wait_for(state="visible", timeout=UI_TIMEOUT)
         
         modal.locator("input[name=\"bank_name\"]").fill(new_name)
-        modal.get_by_role("button", name="Update").click()
-        
-        try:
-            modal.wait_for(state="hidden", timeout=5000)
-            return True
-        except Exception:
-            try:
-                self.page.get_by_text("updated").wait_for(state="visible", timeout=2000)
-                return True
-            except Exception:
-                return False
+        if new_branch is not None:
+            modal.locator('input[name="branch"]').fill(new_branch)
+        if new_account_number is not None:
+            modal.locator('input[name="account_number"]').fill(
+                new_account_number
+            )
+        if new_ifsc is not None:
+            modal.locator('input[name="ifsc_code"]').fill(new_ifsc)
+        with self.page.expect_response(
+            self._is_list_response, timeout=LIST_TIMEOUT
+        ):
+            with self.page.expect_response(
+                self._is_update_response, timeout=LIST_TIMEOUT
+            ) as response_info:
+                modal.get_by_role("button", name="Update").click()
+
+        if response_info.value.status not in (200, 204):
+            return False
+        modal.wait_for(state="hidden", timeout=UI_TIMEOUT)
+        return True
 
     def delete_bank_account(self, bank_name: str) -> bool:
-        self.search_bank_account(bank_name)
-        row = self.page.locator("tr", has=self.page.get_by_text(bank_name, exact=True))
-        row.wait_for(state="visible", timeout=5000)
-        
-        row.get_by_title("delete").first.click()
+        if not self.search_bank_account(bank_name):
+            return False
+
+        self._row(bank_name).locator(DELETE_ICON_BUTTON).click()
         modal = self.page.get_by_role("dialog")
-        modal.wait_for(state="visible", timeout=5000)
-        
-        modal.get_by_role("button", name="Delete Account").click()
+        modal.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        with self.page.expect_response(
+            self._is_list_response, timeout=LIST_TIMEOUT
+        ):
+            with self.page.expect_response(
+                self._is_delete_response, timeout=LIST_TIMEOUT
+            ) as response_info:
+                modal.get_by_role("button", name="Delete Account").click()
+
+        if response_info.value.status not in (200, 204):
+            return False
         
         toast = self.page.get_by_text("Deleted successfully.")
         try:
-            toast.wait_for(state="visible", timeout=10000)
+            toast.wait_for(state="visible", timeout=UI_TIMEOUT)
             return True
         except Exception:
             return False
 
     def retrieve_bank_account(self, bank_name: str) -> bool:
-        self.search_bank_account(bank_name)
-        row = self.page.locator("tr", has=self.page.get_by_text(bank_name, exact=True))
-        row.wait_for(state="visible", timeout=5000)
-        
-        row.get_by_title("delete").first.click()
+        if not self.search_bank_account(bank_name):
+            return False
+
+        self._row(bank_name).locator(RETRIEVE_ICON_BUTTON).click()
         modal = self.page.get_by_role("dialog")
-        modal.wait_for(state="visible", timeout=5000)
-        
-        modal.get_by_role("button", name="Retrieve Account").click()
+        modal.wait_for(state="visible", timeout=UI_TIMEOUT)
+
+        with self.page.expect_response(
+            self._is_list_response, timeout=LIST_TIMEOUT
+        ):
+            with self.page.expect_response(
+                self._is_delete_response, timeout=LIST_TIMEOUT
+            ) as response_info:
+                modal.get_by_role("button", name="Retrieve Account").click()
+
+        if response_info.value.status not in (200, 204):
+            return False
         
         toast = self.page.get_by_text("Retrieved successfully.")
         try:
-            toast.wait_for(state="visible", timeout=10000)
+            toast.wait_for(state="visible", timeout=UI_TIMEOUT)
             return True
         except Exception:
             return False

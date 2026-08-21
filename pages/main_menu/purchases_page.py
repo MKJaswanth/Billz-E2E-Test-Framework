@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import re
-from playwright.sync_api import Page
+from decimal import Decimal, InvalidOperation
+from playwright.sync_api import Page, Locator
 from utils.constants import PURCHASES_URL
+from utils.models import PurchaseResult
+
 
 class PurchasesPage:
     def __init__(self, page: Page) -> None:
@@ -11,90 +14,196 @@ class PurchasesPage:
 
     def navigate(self) -> None:
         self.page.goto(self.url)
+        self.page.wait_for_load_state("domcontentloaded")
+
+    # ── Dynamic @property Locators ──────────────────────────────────────────
+
+    @property
+    def search_input(self) -> Locator:
+        return self.page.get_by_placeholder("Search Purchases...")
+
+    @property
+    def add_purchase_button(self) -> Locator:
+        return self.page.get_by_role("button", name="Add Purchase")
+
+    @property
+    def modal_dialog(self) -> Locator:
+        return self.page.get_by_role("dialog")
+
+    @property
+    def supplier_select(self) -> Locator:
+        return self.page.locator("input[name='supplier_id']").locator("xpath=..").locator(".react-select__input-container")
+
+    @property
+    def branch_select(self) -> Locator:
+        return self.page.locator("input[name='branch_id']").locator("xpath=..").locator(".react-select__input-container")
+
+    @property
+    def reference_input(self) -> Locator:
+        return self.page.locator("input[name='reference_no']")
+
+    @property
+    def paid_amount_input(self) -> Locator:
+        return self.page.locator("input[name='paid_amount']")
+
+    @property
+    def purchase_type_select(self) -> Locator:
+        return self.page.locator("input[name='purchase_type']").locator("xpath=..").locator(".react-select__input-container")
+
+    @property
+    def bank_account_select(self) -> Locator:
+        return self.page.locator("input[name='bank_account_id']").locator("xpath=..").locator(".react-select__input-container")
+
+    @property
+    def create_button(self) -> Locator:
+        return self.page.get_by_role("button", name="Create", exact=True)
+
+    @property
+    def add_item_button(self) -> Locator:
+        return self.page.get_by_role("button", name="+ Add Item")
 
     def is_purchases_visible(self) -> bool:
         try:
-            self.page.get_by_placeholder("Search Purchases...").wait_for(state="visible", timeout=5000)
+            self.search_input.wait_for(state="visible", timeout=5000)
             return True
         except Exception:
             return False
 
-    def add_purchase(self, supplier: str, branch: str, reference_no: str, paid_amount: str, purchase_type: str, bank_account: str | None = None, products_data: list[dict[str, str | int]] | None = None) -> None:
+    def add_purchase(
+        self,
+        supplier: str,
+        branch: str,
+        reference_no: str,
+        paid_amount: str,
+        purchase_type: str,
+        bank_account: str | None = None,
+        products_data: list[dict[str, str | int]] | None = None,
+    ) -> PurchaseResult:
         self.page.goto(f"{self.url}/add")
         self.page.wait_for_load_state("networkidle")
 
-        # 1. Select Supplier
-        self.page.locator("input[name='supplier_id']").locator("xpath=..").locator(".react-select__input-container").click()
-        self.page.get_by_role("option", name=supplier).click()
+        # 1. Select Branch first
+        branch_wrap = self.page.locator("label:has-text('Branch')").locator("xpath=..")
+        branch_wrap.locator(".react-select__input-container").click()
+        self.page.keyboard.type(branch)
+        self.page.wait_for_timeout(300)
+        try:
+            self.page.locator(".react-select__option").filter(has_text=branch).first.click(timeout=4000)
+        except Exception:
+            self.page.get_by_role("option", name=branch, exact=False).first.click(timeout=4000)
 
-        # 2. Select Branch
-        self.page.locator("input[name='branch_id']").locator("xpath=..").locator(".react-select__input-container").click()
-        self.page.get_by_role("option", name=branch).click()
+        # 2. Select Supplier second
+        supp_wrap = self.page.locator("label:has-text('Supplier')").locator("xpath=..")
+        supp_wrap.locator(".react-select__input-container").click()
+        self.page.keyboard.type(supplier)
+        self.page.wait_for_timeout(300)
+        try:
+            self.page.locator(".react-select__option").filter(has_text=supplier).first.click(timeout=4000)
+        except Exception:
+            self.page.get_by_role("option", name=supplier, exact=False).first.click(timeout=4000)
 
         # 3. Fill Reference Number
         if reference_no:
-            self.page.locator("input[name='reference_no']").fill(reference_no)
+            self.reference_input.fill(reference_no)
 
         # 4. Fill Paid Amount
-        self.page.locator("input[name='paid_amount']").fill(str(paid_amount))
-        self.page.wait_for_timeout(500)
+        self.paid_amount_input.fill(str(paid_amount))
 
         # 5. Select Purchase Type (Cash / Bank Account) if paid_amount > 0
         if float(paid_amount) > 0:
-            self.page.locator("input[name='purchase_type']").locator("xpath=..").locator(".react-select__input-container").click()
+            self.purchase_type_select.wait_for(state="visible", timeout=5000)
+            self.purchase_type_select.click()
             self.page.get_by_role("option", name=purchase_type).click()
-            self.page.wait_for_timeout(500)
 
-            # 6. If Bank Account, select bank
             if purchase_type == "Bank Account" and bank_account:
-                self.page.locator("input[name='bank_account_id']").locator("xpath=..").locator(".react-select__input-container").click()
+                self.bank_account_select.wait_for(state="visible", timeout=5000)
+                self.bank_account_select.click()
                 self.page.get_by_role("option", name=bank_account).click()
 
         # 7. Add Product Lines
-        # products_data is list of dicts: [{"product": name, "quantity": qty, "price": val}]
+        total_amount = Decimal("0.00")
         if products_data:
             for i, item in enumerate(products_data):
                 if i > 0:
-                    self.page.get_by_role("button", name="+ Add Item").click()
-                
-                # Select product
-                self.page.locator(f"input[name='items.{i}.product_selector']").locator("xpath=..").locator(".react-select__input-container").click()
-                self.page.get_by_role("option", name=item["product"]).click()
+                    self.add_item_button.click()
 
-                # Fill Quantity
+                prod_wrap = self.page.locator(f"table tbody tr:nth-child({i+1}) td:nth-child(2)")
+                if prod_wrap.count() == 0:
+                    prod_wrap = self.page.locator(f"input[name='items.{i}.product_selector']").locator("xpath=..")
+                prod_wrap.locator(".react-select__input-container").click()
+                prod_name = str(item["product"])
+                self.page.keyboard.type(prod_name)
+                self.page.wait_for_timeout(300)
+                try:
+                    self.page.locator(".react-select__option").filter(has_text=prod_name).first.click(timeout=4000)
+                except Exception:
+                    self.page.get_by_role("option", name=prod_name, exact=False).first.click(timeout=4000)
+
+                qty = Decimal(str(item["quantity"]))
                 self.page.locator(f"input[name='items.{i}.quantity']").fill(str(item["quantity"]))
 
-                # Fill Price/Rate if provided
                 if "price" in item:
+                    price = Decimal(str(item["price"]))
                     self.page.locator(f"input[name='items.{i}.purchase_price']").fill(str(item["price"]))
+                    total_amount += qty * price
 
         # Click Create
-        self.page.get_by_role("button", name="Create", exact=True).click()
-        self.page.wait_for_timeout(1000)
+        self.create_button.click()
 
-        # A confirmation dialog/modal sometimes follows the first Create click (similar to Sales)
+        # Confirmation dialog check if needed
         try:
             confirm_btn = self.page.locator("div.modal-footer button, div[role='dialog'] button").filter(has_text=re.compile(r"^Create$", re.IGNORECASE))
-            if confirm_btn.count() > 0:
+            if confirm_btn.count() > 0 and confirm_btn.first.is_visible():
                 confirm_btn.first.click()
         except Exception:
             pass
 
-        # Wait for toast
-        toast = self.page.get_by_text("Purchase created successfully.")
-        toast.wait_for(state="visible", timeout=10000)
+        # Check for error toasts / alerts first to fail fast
+        err_alert = self.page.locator(".Toastify__toast--error, .alert-danger, .invalid-feedback").first
+        if err_alert.count() > 0 and err_alert.is_visible():
+            raise RuntimeError(f"Purchase creation failed with error: {err_alert.inner_text()}")
+
+        # Wait for success toast or redirect
+        toast_found = False
         try:
-            toast.wait_for(state="hidden", timeout=5000)
+            toast = self.page.locator(".Toastify__toast-body, .toast-body, [role='alert'], .ant-message").filter(
+                has_text=re.compile(r"Purchase.*(?:created|added|success)", re.IGNORECASE)
+            ).first
+            toast.wait_for(state="visible", timeout=8000)
+            toast_found = True
         except Exception:
-            pass
+            try:
+                self.page.get_by_text(re.compile(r"Purchase (?:created|added|success)", re.IGNORECASE)).first.wait_for(
+                    state="visible", timeout=3000
+                )
+                toast_found = True
+            except Exception:
+                try:
+                    self.page.wait_for_url(lambda url: "/purchases" in url and "/add" not in url, timeout=5000)
+                    toast_found = True
+                except Exception:
+                    pass
+
+        if not toast_found:
+            # Check if any error text is visible on the page
+            page_text = self.page.locator("body").inner_text()
+            if "error" in page_text.lower() or "failed" in page_text.lower() or "required" in page_text.lower():
+                raise RuntimeError(f"Purchase creation failed: validation or API error on page: {page_text[:300]}")
+
         self.navigate()
-        self.page.wait_for_load_state("networkidle")
+        return PurchaseResult(
+            reference_no=reference_no,
+            supplier_name=supplier,
+            branch_name=branch,
+            total_amount=total_amount,
+            paid_amount=Decimal(str(paid_amount)),
+            purchase_type=purchase_type,
+        )
+
 
     def search_purchase(self, reference_no: str) -> bool:
-        search_box = self.page.get_by_placeholder("Search Purchases...")
-        search_box.fill(reference_no)
-        search_box.press("Enter")
-        self.page.wait_for_load_state("networkidle", timeout=5000)
+        self.search_input.fill(reference_no)
+        self.search_input.press("Enter")
         try:
             self.page.locator("table tbody tr").filter(has_text=reference_no).first.wait_for(
                 state="visible", timeout=5000
@@ -103,8 +212,71 @@ class PurchasesPage:
         except Exception:
             return False
 
+    def view_purchase(
+        self,
+        reference_no: str,
+        expected_supplier: str | None = None,
+        expected_branch: str | None = None,
+        expected_product: str | None = None,
+        expected_quantity: str | None = None,
+        expected_total: str | None = None,
+    ) -> bool:
+        if not self.search_purchase(reference_no):
+            return False
+        row = self.page.locator("table tbody tr").filter(has_text=reference_no).first
+        row.wait_for(state="visible", timeout=5000)
+
+        view_btn = row.get_by_title("view").first
+        if not view_btn.is_visible():
+            return False
+
+        view_btn.click()
+        dialog = self.page.get_by_role("dialog").filter(has_text="View Purchase").first
+        try:
+            dialog.wait_for(state="visible", timeout=10000)
+            dialog.get_by_text(re.compile(r"Supplier:", re.IGNORECASE)).wait_for(
+                state="visible", timeout=10000
+            )
+            content = dialog.inner_text()
+            expected_text = {
+                "reference number": reference_no,
+                "supplier": expected_supplier,
+                "branch": expected_branch,
+                "total": expected_total,
+            }
+            missing = [
+                label
+                for label, value in expected_text.items()
+                if value and value.casefold() not in content.casefold()
+            ]
+            assert not missing, (
+                f"Purchase View is missing expected {', '.join(missing)}. "
+                f"Visible content: {content}"
+            )
+            if expected_product:
+                item_row = dialog.locator("tbody tr").filter(
+                    has_text=expected_product
+                ).first
+                item_row.wait_for(state="visible", timeout=5000)
+                if expected_quantity:
+                    quantity_text = item_row.locator("td").nth(2).inner_text().strip()
+                    try:
+                        quantity = Decimal(quantity_text)
+                    except InvalidOperation as error:
+                        raise AssertionError(
+                            f"Purchase quantity is not numeric: {quantity_text!r}"
+                        ) from error
+                    assert quantity == Decimal(expected_quantity), (
+                        f"Expected purchase quantity {expected_quantity}, got {quantity_text}"
+                    )
+            return True
+        finally:
+            close_btn = dialog.locator(".btn-close").first
+            if close_btn.count() > 0 and close_btn.is_visible():
+                close_btn.click()
+
     def initiate_return(self, reference_no: str) -> None:
         self.search_purchase(reference_no)
         row = self.page.locator("table tbody tr").filter(has_text=reference_no).first
-        row.get_by_title("purchase return").click()
+        row.locator("button[title*='return' i], button:has(i.bi-arrow-repeat)").first.click()
         self.page.wait_for_load_state("networkidle")

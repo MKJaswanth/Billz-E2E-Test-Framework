@@ -31,6 +31,7 @@ PRODUCT_ATTRIBUTES_URL: str = f"{BASE_URL}/product-unit-attributes"
 BANK_ACCOUNTS_URL: str = f"{BASE_URL}/bank-accounts"
 ENQUIRY_STAGE_WORKFLOWS_URL: str = f"{BASE_URL}/enquiry-stage-workflows"
 ACCOUNT_GROUPS_URL: str = f"{BASE_URL}/account-groups"
+EMI_PROVIDERS_URL: str = f"{BASE_URL}/emi-providers"
 EXPENSE_CATEGORIES_URL: str = f"{BASE_URL}/expense-categories"
 ENQUIRY_TYPES_URL: str = f"{BASE_URL}/enquiry-types"
 SAC_HSN_URL: str = f"{BASE_URL}/gst-codes"
@@ -47,3 +48,24 @@ BATCHES_URL: str = f"{BASE_URL}/batches"
 INVENTORIES_URL: str = f"{BASE_URL}/inventories"
 STOCK_TRANSFERS_URL: str = f"{BASE_URL}/stock-transfers"
 DAY_BOOKS_URL: str = f"{BASE_URL}/day-book"
+BRANCH_FUND_TRANSFERS_URL: str = f"{BASE_URL}/branch-fund-transfers"
+ACCOUNTING_DAY_BOOK_URL: str = f"{BASE_URL}/accounting/day-book"
+PROFIT_LOSS_URL: str = f"{BASE_URL}/reports/profit-loss"
+TRIAL_BALANCE_URL: str = f"{BASE_URL}/reports/trial-balance"
+BALANCE_SHEET_URL: str = f"{BASE_URL}/reports/balance-sheet"
+CASH_FLOW_URL: str = f"{BASE_URL}/reports/cash-flow"
+OUTSTANDING_BILLS_URL: str = f"{BASE_URL}/vouchers/outstanding"
+CUSTOMER_OUTSTANDING_URL: str = f"{BASE_URL}/reports/customer-outstanding"
+SUPPLIER_OUTSTANDING_URL: str = f"{BASE_URL}/reports/supplier-outstanding"
+MDR_REPORT_URL: str = f"{BASE_URL}/reports/mdr-report"
+EMI_RECONCILIATION_URL: str = f"{BASE_URL}/reports/emi-provider-reconciliation"
+STOCK_SUMMARY_URL: str = f"{BASE_URL}/reports/stock-summary"
+GSTR1_B2B_URL: str = f"{BASE_URL}/reports/gstr1-b2b"
+GSTR1_B2C_URL: str = f"{BASE_URL}/reports/gstr1-b2c"
+
+# ── Standard Timeouts (in milliseconds) ──────────────────────────────────────
+SEARCH_DEBOUNCE_MS: int = 1000
+LIST_TIMEOUT: int = SEARCH_DEBOUNCE_MS + 9000  # 10,000ms for debounced list API
+UI_TIMEOUT: int = 5000                          # 5,000ms for standard UI elements
+SETTLED_TIMEOUT: int = 2500                     # 2,500ms for quick row presence checks
+

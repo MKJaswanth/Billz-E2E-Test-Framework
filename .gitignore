@@ -1,19 +1,33 @@
 # Python pycache and compiled files
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
 .pytest_cache/
 .pytest_cache*
 
 # Credentials & Session files
 .env
+.env.local
 auth_state.json
 auth.json
 .auth/
 
-# Test reports, logs and media
+# Test reports, traces, logs and artifacts
 *.png
+*.jpg
+*.jpeg
 *.webp
+*.zip
+*.pdf
 reports/
+report.html
 results.xml
+*.log
+
+# IDE & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+tmp/
+evidence/

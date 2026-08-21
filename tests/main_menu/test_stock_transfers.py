@@ -11,7 +11,7 @@ from pages.master_menu.cities_page import CitiesPage
 from pages.master_menu.categories_page import CategoriesPage
 from pages.master_menu.brands_page import BrandPage
 from pages.master_menu.unit_types_page import UnitTypesPage
-from pages.master_menu.sac_hsn_page import SacHsnPage
+from pages.master_menu.sac_hsn_code_page import SacHsnCodePage
 from utils.random_data import (
     generate_random_name,
     generate_random_email,
@@ -85,7 +85,7 @@ def module_unit_type(module_page):
 
 @pytest.fixture(scope="module")
 def module_hsn_code(module_page):
-    sac_page = SacHsnPage(module_page)
+    sac_page = SacHsnCodePage(module_page)
     sac_page.navigate()
     sac_code = str(random.randint(100000, 999999))
     sac_page.add_sac_hsn_code("SAC", sac_code, description="stock transfer tests")

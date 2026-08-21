@@ -60,8 +60,7 @@ playwright-python-tests/
 │   │   ├── product_attributes_page.py    # Product attribute definitions
 │   │   ├── attribute_keys_page.py        # Attribute key management
 │   │   ├── attribute_values_page.py      # Attribute value management
-│   │   ├── sac_hsn_page.py               # SAC/HSN code management (list/search)
-│   │   ├── sac_hsn_code_page.py          # SAC/HSN code add/edit workflows
+│   │   ├── sac_hsn_code_page.py          # SAC/HSN code management (list, search, add, edit, delete, restore)
 │   │   ├── enquiry_types_page.py         # Enquiry type management
 │   │   └── enquiry_stage_workflows_page.py # Workflow & Stage management
 │   │
@@ -95,7 +94,6 @@ playwright-python-tests/
 │   │
 │   ├── reports/                          # Reporting pages
 │   │   ├── stock_summary_page.py         # Stock summary report
-│   │   ├── outstanding_page.py           # Outstanding receivables/payables report
 │   │   └── mdr_report_page.py            # MDR report
 │   │
 │   └── dashboard_page.py                 # App dashboard / home page
@@ -154,7 +152,6 @@ playwright-python-tests/
 │   │
 │   └── reports/                          # Reporting tests
 │       ├── test_stock_summary.py         # Stock summary report tests
-│       ├── test_outstanding.py           # Outstanding report tests
 │       └── test_mdr_report.py            # MDR report tests
 │
 ├── utils/                                # SHARED UTILITIES LAYER
@@ -229,6 +226,5 @@ def test_some_workflow(logged_in_page, debug_pause):
     
     # Rest of the test...
 ```
-
 
 

@@ -1,9 +1,33 @@
 import os
+from urllib.parse import urlparse
 import pytest
 from pages.auth.login_page import LoginPage
-from utils.constants import ADMIN_EMAIL, ADMIN_PASSWORD
+from utils.constants import ADMIN_EMAIL, ADMIN_PASSWORD, BASE_URL
 
-STORAGE_STATE_PATH = os.path.join(os.path.dirname(__file__), "auth_state.json")
+
+def pytest_configure(config):
+    # Safety Check: Mutation Guard & Environment Lockout
+    allow_mutating = os.getenv("ALLOW_MUTATING_TESTS", "0")
+    test_env = os.getenv("TEST_ENV", "dev").lower()
+
+    hostname = urlparse(BASE_URL).netloc.lower()
+    forbidden_terms = ["uat", "prod", "production", "live"]
+    if any(term in hostname.split(".") for term in forbidden_terms) or any(term in hostname.split("-") for term in forbidden_terms):
+        raise pytest.UsageError(
+            f"SAFETY LOCKOUT: Tests are configured against protected host '{hostname}'. "
+            f"Automated test execution with mutations is blocked against production/UAT domains."
+        )
+
+    if allow_mutating != "1":
+        raise pytest.UsageError(
+            "SAFETY LOCKOUT: ALLOW_MUTATING_TESTS=1 is required in .env or environment to execute tests."
+        )
+
+    if test_env not in ["dev", "staging", "local", "test"]:
+        raise pytest.UsageError(
+            f"SAFETY LOCKOUT: Invalid TEST_ENV='{test_env}'. Must be one of ['dev', 'staging', 'local', 'test']."
+        )
+
 
 def pytest_addoption(parser):
     parser.addoption(
@@ -36,7 +60,6 @@ def browser_context_args(browser_context_args):
 
 @pytest.fixture(scope="session")
 def auth_state(browser):
-
     context = browser.new_context(ignore_https_errors=True)
     page = context.new_page()
     login_page = LoginPage(page)
@@ -46,16 +69,27 @@ def auth_state(browser):
     page.wait_for_load_state("networkidle")
 
 
-    context.storage_state(path=STORAGE_STATE_PATH)
+    storage_state = context.storage_state()
     context.close()
 
-    yield STORAGE_STATE_PATH
+    yield storage_state
 
 @pytest.fixture
-def logged_in_page(browser, auth_state):
+def logged_in_page(browser, auth_state, request):
     context = browser.new_context(storage_state=auth_state, ignore_https_errors=True)
+    tracing_option = request.config.getoption("--tracing", default="off")
+    if tracing_option in ["on", "retain-on-failure"]:
+        context.tracing.start(screenshots=True, snapshots=True, sources=True)
     page = context.new_page()
     yield page
+    if tracing_option in ["on", "retain-on-failure"]:
+        import os
+        os.makedirs("test-results", exist_ok=True)
+        trace_path = os.path.join("test-results", f"{request.node.name}_trace.zip")
+        context.tracing.stop(path=trace_path)
+        # Also create root trace.zip for quick one-line inspection
+        import shutil
+        shutil.copyfile(trace_path, "trace.zip")
     context.close()
 
 @pytest.fixture(scope="module")
@@ -77,7 +111,8 @@ def funded_bank_account(browser, auth_state):
     from pages.master_menu.categories_page import CategoriesPage
     from pages.master_menu.brands_page import BrandPage
     from pages.master_menu.unit_types_page import UnitTypesPage
-    from pages.master_menu.sac_hsn_page import SacHsnPage
+    from pages.master_menu.sac_hsn_code_page import SacHsnCodePage
+    from pages.master_menu.branches_page import BranchesPage
     from pages.main_menu.products_page import ProductsPage
     from pages.main_menu.customers_page import CustomersPage
     from pages.main_menu.sales_page import SalesPage
@@ -87,7 +122,13 @@ def funded_bank_account(browser, auth_state):
     context = browser.new_context(storage_state=auth_state, ignore_https_errors=True)
     page = context.new_page()
 
-    # 1. Product dependencies
+    # 1. Branch (own branch to avoid "Main Branch" naming issues)
+    branches_page = BranchesPage(page)
+    branches_page.navigate()
+    branch_name = branches_page.add_branch()
+    branches_page.page.get_by_text("Branch created successfully.").wait_for(state="visible", timeout=5000)
+
+    # 2. Product dependencies
     categories_page = CategoriesPage(page)
     categories_page.navigate()
     cat_name = generate_random_name("fund_cat")
@@ -104,7 +145,7 @@ def funded_bank_account(browser, auth_state):
     unit_name = generate_random_name("fund_unit")
     unit_page.add_unit_type(name=unit_name, unit="pcs", description="bank funding")
 
-    sac_page = SacHsnPage(page)
+    sac_page = SacHsnCodePage(page)
     sac_page.navigate()
     sac_code = str(random.randint(100000, 999999))
     sac_page.add_sac_hsn_code("SAC", sac_code, description="bank funding")
@@ -134,32 +175,42 @@ def funded_bank_account(browser, auth_state):
     bank_name = generate_random_name("fund_bank")
     bank_page.add_bank_account(
         bank_name=bank_name,
-        branch="Main Branch",
+        branch="Automation Bank Branch",
         account_number=str(random.randint(100000000000, 999999999999)),
         ifsc_code="IDFC0000899",
     )
 
-    # 4. Add opening stock
+    # 4. Add opening stock (2 units — one for bank sale, one for cash sale)
     products_page.navigate()
     products_page.update_opening_stock(
         name=product_name,
-        branch_name="Main Branch",
-        quantity="1",
+        branch_name=branch_name,
+        quantity="2",
         cost_price="1",
     )
 
-    # 5. Sell the product — payment goes into our bank account
+    # 5. Sell one unit via bank — funds the bank account with ₹500
     sales_page = SalesPage(page)
     sales_page.add_sale(
         customer_name=customer_name,
-        branch_name="Main Branch",
+        branch_name=branch_name,
         product_name=product_name,
         price="500",
         paid_amount="500",
         payment_method=bank_name,
     )
 
-    yield bank_name
+    # 6. Sell another unit via cash — funds the branch's cash with ₹500
+    sales_page.add_sale(
+        customer_name=customer_name,
+        branch_name=branch_name,
+        product_name=product_name,
+        price="500",
+        paid_amount="500",
+        payment_method="Cash",
+    )
+
+    yield {"bank_name": bank_name, "branch_name": branch_name}
 
     # Sale references keep these undeletable — just close context
     context.close()
@@ -364,6 +415,3 @@ def pytest_runtest_teardown(item, nextitem):
             playback.test_name = f"Teardown: {display_name}"
         except Exception:
             pass
-
-
-

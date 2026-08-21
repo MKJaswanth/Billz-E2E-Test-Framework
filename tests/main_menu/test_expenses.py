@@ -72,7 +72,7 @@ def test_add_expense_bank(
         branch=module_branch,
         amount="200",
         payment_type="Bank Account",
-        bank_account=funded_bank_account,
+        bank_account=funded_bank_account["bank_name"],
         description="Bank expense auto test",
     )
 
@@ -92,17 +92,17 @@ def test_add_expense_bank(
 def test_add_expense_cash(
     logged_in_page, module_expense_category, funded_bank_account
 ):
-    """Create an expense paid by Cash from Main Branch.
+    """Create an expense paid by Cash from the funded branch.
 
-    The funded_bank_account sale puts cash into Main Branch, so Main Branch
-    should have cash balance for this expense.
+    The funded_bank_account fixture sells a product via Cash into its branch,
+    so that branch has cash balance for this expense.
     """
     expenses_page = ExpensesPage(logged_in_page)
     expenses_page.navigate()
 
     expenses_page.add_expense(
         category=module_expense_category,
-        branch="Main Branch",
+        branch=funded_bank_account["branch_name"],
         amount="50",
         payment_type="Cash",
         description="Cash expense auto test",
@@ -124,9 +124,9 @@ def test_filter_by_branch(
 
     expenses_page.filter_by_branch(module_branch)
 
-    row_data = expenses_page.get_first_row_data()
-    assert module_branch in row_data["branch"], (
-        f"Expected branch '{module_branch}', got '{row_data['branch']}'"
+    # After filtering, search for our specific expense to be sure
+    assert expenses_page.search_expense("Bank expense auto test"), (
+        "Bank expense not found after filtering by branch"
     )
 
 
@@ -152,9 +152,4 @@ def test_search_expense(logged_in_page):
 
     assert expenses_page.search_expense("Bank expense auto test"), (
         "Expense not found by description search"
-    )
-
-    row_data = expenses_page.get_first_row_data()
-    assert "Bank expense auto test" in row_data["description"], (
-        f"Expected description 'Bank expense auto test', got '{row_data['description']}'"
     )

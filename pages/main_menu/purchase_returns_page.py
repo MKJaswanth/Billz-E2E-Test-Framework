@@ -14,7 +14,7 @@ class PurchaseReturnsPage:
 
     def is_purchase_returns_visible(self) -> bool:
         try:
-            self.page.get_by_role("textbox", name="Search...").wait_for(state="visible", timeout=5000)
+            self.page.get_by_placeholder(re.compile(r"Search", re.IGNORECASE)).wait_for(state="visible", timeout=5000)
             return True
         except Exception:
             return False
@@ -27,12 +27,17 @@ class PurchaseReturnsPage:
         self.page.get_by_role("button", name="Return").click()
         
         # Wait for success toast
-        toast = self.page.get_by_text("Purchase returned")
-        toast.wait_for(state="visible", timeout=10000)
         try:
-            toast.wait_for(state="hidden", timeout=5000)
+            toast = self.page.locator(".Toastify__toast-body, .toast-body, [role='alert'], .ant-message").filter(
+                has_text=re.compile(r"Purchase.*return", re.IGNORECASE)
+            ).first
+            toast.wait_for(state="visible", timeout=10000)
+            try:
+                toast.wait_for(state="hidden", timeout=5000)
+            except Exception:
+                pass
         except Exception:
-            pass
+            self.page.get_by_text(re.compile(r"Purchase return", re.IGNORECASE)).first.wait_for(state="visible", timeout=5000)
 
     def filter_returns(self, branch_name: str, supplier_name: str) -> None:
         self.navigate()

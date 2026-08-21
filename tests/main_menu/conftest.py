@@ -8,7 +8,7 @@ from pages.master_menu.cities_page import CitiesPage
 from pages.master_menu.categories_page import CategoriesPage
 from pages.master_menu.brands_page import BrandPage
 from pages.master_menu.unit_types_page import UnitTypesPage
-from pages.master_menu.sac_hsn_page import SacHsnPage
+from pages.master_menu.sac_hsn_code_page import SacHsnCodePage
 from utils.random_data import generate_random_name, generate_random_email, generate_random_phone, generate_random_postal_code, generate_random_address, generate_random_gst
 
 @pytest.fixture(scope="module")
@@ -56,7 +56,7 @@ def module_unit_type(module_page):
 
 @pytest.fixture(scope="module")
 def module_hsn_code(module_page):
-    sac_page = SacHsnPage(module_page)
+    sac_page = SacHsnCodePage(module_page)
     sac_page.navigate()
     sac_code = str(random.randint(100000, 999999))
     sac_page.add_sac_hsn_code("SAC", sac_code, description="desc")
@@ -67,6 +67,15 @@ def module_hsn_code(module_page):
             sac_page.delete_sac_hsn_code(sac_code)
     except Exception as e:
         print(f"Teardown: Failed to delete HSN {sac_code} due to {type(e).__name__}: {e}")
+
+@pytest.fixture(scope="module")
+def product_dependencies(module_category, module_brand, module_unit_type, module_hsn_code):
+    return {
+        "category": module_category,
+        "brand": module_brand,
+        "unit_type": module_unit_type,
+        "hsn_code": module_hsn_code,
+    }
 
 @pytest.fixture(scope="module")
 def module_city(module_page):
@@ -116,7 +125,7 @@ def module_supplier(module_page, module_city):
     yield supplier_name
     try:
         suppliers_page.navigate()
-        if suppliers_page.search_supplier(supplier_name):
+        if suppliers_page.is_supplier_active(supplier_name):
             suppliers_page.delete_supplier(supplier_name)
     except Exception as e:
         print(f"Teardown: Failed to delete supplier {supplier_name} due to {type(e).__name__}: {e}")
@@ -139,7 +148,7 @@ def module_product(module_page, module_category, module_brand, module_unit_type,
     yield product_name
     try:
         products_page.navigate()
-        if products_page.search_product(product_name):
+        if products_page.is_product_active(product_name):
             products_page.delete_product(product_name)
     except Exception as e:
         print(f"Teardown: Failed to delete product {product_name} due to {type(e).__name__}: {e}")
