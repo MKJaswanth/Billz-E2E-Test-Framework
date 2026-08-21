@@ -133,7 +133,7 @@ class PlaybackControl:
             "if(savedLeft && savedTop){"
             "  bar.style.left=savedLeft; bar.style.top=savedTop;"
             "}else{"
-            "  bar.style.top=\'10px\'; bar.style.right=\'10px\';"
+            "  bar.style.bottom='20px'; bar.style.left='20px';"
             "}"
             
             # Drag handle header
