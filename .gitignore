@@ -17,8 +17,11 @@ auth.json
 *.jpg
 *.jpeg
 *.webp
+*.webm
+*.mp4
 *.zip
 *.pdf
+videos/
 reports/
 report.html
 results.xml

@@ -1,4 +1,5 @@
 import os
+import shutil
 from urllib.parse import urlparse
 import pytest
 from pages.auth.login_page import LoginPage
@@ -76,25 +77,45 @@ def auth_state(browser):
 
 @pytest.fixture
 def logged_in_page(browser, auth_state, request):
-    context = browser.new_context(storage_state=auth_state, ignore_https_errors=True)
+    video_option = request.config.getoption("--video", default="off")
+    context_kwargs = {
+        "storage_state": auth_state,
+        "ignore_https_errors": True,
+        "viewport": {"width": 1280, "height": 720},
+    }
+    if video_option in ["on", "retain-on-failure"]:
+        os.makedirs("videos", exist_ok=True)
+        context_kwargs["record_video_dir"] = "videos"
+        context_kwargs["record_video_size"] = {"width": 1280, "height": 720}
+
+    context = browser.new_context(**context_kwargs)
     tracing_option = request.config.getoption("--tracing", default="off")
     if tracing_option in ["on", "retain-on-failure"]:
         context.tracing.start(screenshots=True, snapshots=True, sources=True)
     page = context.new_page()
     yield page
     if tracing_option in ["on", "retain-on-failure"]:
-        import os
         os.makedirs("test-results", exist_ok=True)
         trace_path = os.path.join("test-results", f"{request.node.name}_trace.zip")
         context.tracing.stop(path=trace_path)
         # Also create root trace.zip for quick one-line inspection
-        import shutil
         shutil.copyfile(trace_path, "trace.zip")
     context.close()
 
 @pytest.fixture(scope="module")
-def module_page(browser, auth_state):
-    context = browser.new_context(storage_state=auth_state, ignore_https_errors=True)
+def module_page(browser, auth_state, request):
+    video_option = request.config.getoption("--video", default="off")
+    context_kwargs = {
+        "storage_state": auth_state,
+        "ignore_https_errors": True,
+        "viewport": {"width": 1280, "height": 720},
+    }
+    if video_option in ["on", "retain-on-failure"]:
+        os.makedirs("videos", exist_ok=True)
+        context_kwargs["record_video_dir"] = "videos"
+        context_kwargs["record_video_size"] = {"width": 1280, "height": 720}
+
+    context = browser.new_context(**context_kwargs)
     page = context.new_page()
     yield page
     context.close()
