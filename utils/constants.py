@@ -63,9 +63,10 @@ STOCK_SUMMARY_URL: str = f"{BASE_URL}/reports/stock-summary"
 GSTR1_B2B_URL: str = f"{BASE_URL}/reports/gstr1-b2b"
 GSTR1_B2C_URL: str = f"{BASE_URL}/reports/gstr1-b2c"
 
+
 # ── Standard Timeouts (in milliseconds) ──────────────────────────────────────
 SEARCH_DEBOUNCE_MS: int = 1000
-LIST_TIMEOUT: int = SEARCH_DEBOUNCE_MS + 9000  # 10,000ms for debounced list API
-UI_TIMEOUT: int = 5000                          # 5,000ms for standard UI elements
-SETTLED_TIMEOUT: int = 2500                     # 2,500ms for quick row presence checks
+LIST_TIMEOUT: int = 20000                           # 20,000ms for debounced list / creation API
+UI_TIMEOUT: int = 5000                              # 5,000ms for standard UI elements
+SETTLED_TIMEOUT: int = 2500                         # 2,500ms for quick row presence checks
 

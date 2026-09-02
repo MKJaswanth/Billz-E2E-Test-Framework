@@ -79,12 +79,13 @@ class PurchasesPage:
         bank_account: str | None = None,
         products_data: list[dict[str, str | int]] | None = None,
     ) -> PurchaseResult:
-        self.page.goto(f"{self.url}/add")
-        self.page.wait_for_load_state("networkidle")
+        self.page.goto(f"{self.url}/add", wait_until="domcontentloaded")
 
         # 1. Select Branch first
         branch_wrap = self.page.locator("label:has-text('Branch')").locator("xpath=..")
-        branch_wrap.locator(".react-select__input-container").click()
+        branch_input = branch_wrap.locator(".react-select__input-container")
+        branch_input.wait_for(state="visible", timeout=15000)
+        branch_input.click()
         self.page.keyboard.type(branch)
         self.page.wait_for_timeout(300)
         try:
@@ -106,21 +107,7 @@ class PurchasesPage:
         if reference_no:
             self.reference_input.fill(reference_no)
 
-        # 4. Fill Paid Amount
-        self.paid_amount_input.fill(str(paid_amount))
-
-        # 5. Select Purchase Type (Cash / Bank Account) if paid_amount > 0
-        if float(paid_amount) > 0:
-            self.purchase_type_select.wait_for(state="visible", timeout=5000)
-            self.purchase_type_select.click()
-            self.page.get_by_role("option", name=purchase_type).click()
-
-            if purchase_type == "Bank Account" and bank_account:
-                self.bank_account_select.wait_for(state="visible", timeout=5000)
-                self.bank_account_select.click()
-                self.page.get_by_role("option", name=bank_account).click()
-
-        # 7. Add Product Lines
+        # 4. Add Product Lines
         total_amount = Decimal("0.00")
         if products_data:
             for i, item in enumerate(products_data):
@@ -146,6 +133,22 @@ class PurchasesPage:
                     price = Decimal(str(item["price"]))
                     self.page.locator(f"input[name='items.{i}.purchase_price']").fill(str(item["price"]))
                     total_amount += qty * price
+
+        # 5. Enter payment after line totals exist. Purchase forms may
+        # recalculate paid_amount when a product is selected.
+        self.paid_amount_input.fill(str(paid_amount))
+        self.paid_amount_input.blur()
+        self.page.wait_for_timeout(200)
+
+        if float(paid_amount) > 0:
+            self.purchase_type_select.wait_for(state="visible", timeout=5000)
+            self.purchase_type_select.click()
+            self.page.get_by_role("option", name=purchase_type).click()
+
+            if purchase_type == "Bank Account" and bank_account:
+                self.bank_account_select.wait_for(state="visible", timeout=5000)
+                self.bank_account_select.click()
+                self.page.get_by_role("option", name=bank_account).click()
 
         # Click Create
         self.create_button.click()
@@ -220,6 +223,8 @@ class PurchasesPage:
         expected_product: str | None = None,
         expected_quantity: str | None = None,
         expected_total: str | None = None,
+        expected_paid_amount: str | None = None,
+        expected_payment_status: str | None = None,
     ) -> bool:
         if not self.search_purchase(reference_no):
             return False
@@ -243,6 +248,8 @@ class PurchasesPage:
                 "supplier": expected_supplier,
                 "branch": expected_branch,
                 "total": expected_total,
+                "paid amount": expected_paid_amount,
+                "payment status": expected_payment_status,
             }
             missing = [
                 label

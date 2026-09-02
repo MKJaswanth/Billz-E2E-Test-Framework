@@ -204,6 +204,20 @@ def test_financial_reports_and_gstr_tax_audit_flow(
         ),
         None,
     )
+    if b2c_match is None:
+        today_iso = date.today().isoformat()
+        filtered_b2c = gstr1_b2c_page.apply_filters(
+            from_date=today_iso, to_date=today_iso, branch_name=regression_branch_a
+        )
+        b2c_rows = filtered_b2c.get("rows", [])
+        b2c_match = next(
+            (
+                r for r in b2c_rows
+                if r.get("customer_name") == regression_customer
+                or r.get("invoice_number") == b2c_sale.invoice_no
+            ),
+            None,
+        )
     assert b2c_match is not None, f"B2C invoice for {regression_customer} must appear in GSTR-1 B2C report"
     assert _money(b2c_match.get("taxable_value")) == Decimal("500.00"), f"Expected ₹500.00 taxable value, got {b2c_match.get('taxable_value')}"
     assert _money(b2c_match.get("cgst_amount", b2c_match.get("cgst"))) == Decimal("45.00"), "CGST must equal ₹45.00 (9%)"

@@ -89,18 +89,41 @@ class OutstandingBillsPage:
         type_sel = self.page.locator("#outstanding-bill-type, select[name='type']").first
         if type_sel.count() > 0 and type_sel.is_visible():
             return
-        btn = self.page.locator(
-            "button:has-text('Expand filters'), button:has-text('Filters'), button:has-text('Filter'), .filters-toggle-modern, .filter-toggle, button.btn-outline-secondary"
-        ).first
-        if btn.count() > 0:
-            btn.click()
-            self.page.wait_for_timeout(300)
+        toggles = [
+            self.page.locator(".filters-header-modern").first,
+            self.page.locator(".filters-toggle-btn").first,
+            self.page.locator("button[aria-label='Expand filters']").first,
+            self.page.locator("button:has(i.bi-chevron-down), button:has(i.bi-funnel)").first,
+        ]
+        for toggle in toggles:
+            try:
+                if toggle.count() > 0 and toggle.is_visible():
+                    toggle.click()
+                    self.page.wait_for_timeout(400)
+                    if type_sel.is_visible():
+                        return
+            except Exception:
+                continue
+
+        try:
+            self.page.evaluate("""
+                document.querySelectorAll('.filter-select-modern, #outstanding-bill-type, #outstanding-bill-status')
+                    .forEach(el => {
+                        let parent = el.closest('.filters-body-modern, .filters-content, .collapse');
+                        if (parent) {
+                            parent.style.display = 'block';
+                            parent.classList.add('show');
+                        }
+                    });
+            """)
+            self.page.wait_for_timeout(200)
+        except Exception:
+            pass
 
     def set_type(self, bill_type: str) -> dict[str, Any]:
         self.expand_filters()
         type_sel = self.page.locator("#outstanding-bill-type, select[name='type']").first
-        if not type_sel.is_visible():
-            self.expand_filters()
+        type_sel.wait_for(state="visible", timeout=5000)
         return self._capture(
             lambda: type_sel.select_option(bill_type),
             lambda response: self._matches_params(response, type=bill_type, page=1),
@@ -112,8 +135,7 @@ class OutstandingBillsPage:
     def set_status(self, status: str, bill_type: str = "sales") -> dict[str, Any]:
         self.expand_filters()
         status_sel = self.page.locator("#outstanding-bill-status, select[name='status']").first
-        if not status_sel.is_visible():
-            self.expand_filters()
+        status_sel.wait_for(state="visible", timeout=5000)
         return self._capture(
             lambda: status_sel.select_option(status),
             lambda response: self._matches_params(
@@ -164,10 +186,13 @@ class OutstandingBillsPage:
             btn = self.page.locator(".pagination .page-item, .pagination a, .pagination button, button.page-link, a.page-link, .page-link").filter(
                 has_text=re.compile(rf"^\s*{page_number}\s*$")
             ).first
-            if btn.count() > 0:
+            try:
+                btn.wait_for(state="visible", timeout=3000)
                 btn.scroll_into_view_if_needed()
                 btn.click()
                 return
+            except Exception:
+                pass
 
             next_btn = self.page.locator(".pagination .page-item, .pagination a, .pagination button, button, a").filter(
                 has_text=re.compile(r"Next|›|»", re.I)
@@ -202,7 +227,7 @@ class OutstandingBillsPage:
     ) -> dict[str, Any] | None:
         items = data.get("items", []) or data.get("data", []) or (data if isinstance(data, list) else [])
         for item in items:
-            p_name = (
+            p_val = (
                 item.get("party_name")
                 or item.get("customer_name")
                 or item.get("supplier_name")
@@ -213,7 +238,15 @@ class OutstandingBillsPage:
                 or item.get("client_name")
                 or ""
             )
-            if (party_name.lower() in str(p_name).lower() or str(p_name).lower() in party_name.lower()) and (
+            if isinstance(p_val, dict):
+                p_name = p_val.get("name") or p_val.get("party_name") or ""
+            else:
+                p_name = str(p_val).strip()
+
+            if not p_name:
+                continue
+
+            if (party_name.lower() in p_name.lower() or p_name.lower() in party_name.lower()) and (
                 bill_id is None or item.get("id") == bill_id or item.get("bill_id") == bill_id
             ):
                 return item

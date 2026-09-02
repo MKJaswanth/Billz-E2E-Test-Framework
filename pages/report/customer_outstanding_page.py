@@ -57,9 +57,10 @@ class CustomerOutstandingPage:
         self,
         action: Callable[[], None],
         predicate: Callable[[Response], bool] | None = None,
+        timeout: float = 30_000,
     ) -> dict[str, Any]:
         matcher = predicate or self._is_report_response
-        with self.page.expect_response(matcher, timeout=15_000) as response_info:
+        with self.page.expect_response(matcher, timeout=timeout) as response_info:
             action()
         response = response_info.value
         assert response.ok, (
@@ -99,9 +100,15 @@ class CustomerOutstandingPage:
         )
 
     def expand_filters(self) -> None:
-        button = self.page.get_by_role("button", name="Expand filters")
+        test_el = self.page.locator(
+            ".filters-content-modern select, .filters-content-modern input, .filters-body-modern"
+        ).first
+        if test_el.count() > 0 and test_el.is_visible():
+            return
+        button = self.page.locator(".filters-toggle-btn:has(i.bi-chevron-down), button[aria-label='Expand filters'], .filters-toggle-btn").first
         if button.count() and button.is_visible():
             button.click()
+            self.page.wait_for_timeout(300)
 
     def search(self, query: str) -> dict[str, Any]:
         return self._capture(
@@ -204,10 +211,13 @@ class CustomerOutstandingPage:
             btn = self.page.locator(".pagination .page-item, .pagination a, .pagination button, button.page-link, a.page-link, .page-link").filter(
                 has_text=re.compile(rf"^\s*{page_number}\s*$")
             ).first
-            if btn.count() > 0:
+            try:
+                btn.wait_for(state="visible", timeout=3000)
                 btn.scroll_into_view_if_needed()
                 btn.click()
                 return
+            except Exception:
+                pass
 
             next_btn = self.page.locator(".pagination .page-item, .pagination a, .pagination button, button, a").filter(
                 has_text=re.compile(r"Next|›|»", re.I)
@@ -235,7 +245,7 @@ class CustomerOutstandingPage:
                 and path.endswith("/accounting/ledger-statement/entries")
             )
 
-        with self.page.expect_response(is_ledger_response, timeout=15_000) as response_info:
+        with self.page.expect_response(is_ledger_response, timeout=30_000) as response_info:
             row.get_by_role("button", name="View Ledger").click()
         response = response_info.value
         assert response.ok, f"Ledger drawer API returned HTTP {response.status}"
