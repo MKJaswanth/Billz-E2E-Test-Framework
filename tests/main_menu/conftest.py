@@ -125,7 +125,7 @@ def module_supplier(module_page, module_city):
     yield supplier_name
     try:
         suppliers_page.navigate()
-        if suppliers_page.is_supplier_active(supplier_name):
+        if suppliers_page.search_supplier(supplier_name):
             suppliers_page.delete_supplier(supplier_name)
     except Exception as e:
         print(f"Teardown: Failed to delete supplier {supplier_name} due to {type(e).__name__}: {e}")

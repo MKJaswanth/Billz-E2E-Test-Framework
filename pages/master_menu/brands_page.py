@@ -215,18 +215,29 @@ class BrandsPage:
         modal = self.dialog
         modal.wait_for(state="visible", timeout=UI_TIMEOUT)
 
-        with self.page.expect_response(
-            self._is_list_response, timeout=LIST_TIMEOUT
-        ):
+        try:
             with self.page.expect_response(
-                self._is_delete_response, timeout=LIST_TIMEOUT
-            ) as response_info:
-                modal.get_by_role("button", name="Delete Brand").click()
+                self._is_list_response, timeout=LIST_TIMEOUT
+            ):
+                with self.page.expect_response(
+                    self._is_delete_response, timeout=LIST_TIMEOUT
+                ) as response_info:
+                    modal.get_by_role("button", name="Delete Brand").click()
 
-        if response_info.value.status not in (200, 204):
+            if response_info.value.status not in (200, 204):
+                try:
+                    modal.get_by_role("button", name=re.compile(r"Close|Cancel", re.I)).first.click()
+                except Exception:
+                    pass
+                return False
+            modal.wait_for(state="hidden", timeout=UI_TIMEOUT)
+            return True
+        except Exception:
+            try:
+                modal.get_by_role("button", name=re.compile(r"Close|Cancel", re.I)).first.click()
+            except Exception:
+                pass
             return False
-        modal.wait_for(state="hidden", timeout=UI_TIMEOUT)
-        return True
 
     def retrieve_brand(self, brand_name: str) -> bool:
         if not self.search_brand(brand_name):

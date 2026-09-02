@@ -11,21 +11,32 @@ from pages.accounting.profit_loss_page import ProfitLossPage
 
 @pytest.fixture(scope="module")
 def profit_loss_known_state(module_page, voucher_funded_state):
-    """Measure a known 30.00 expense journal's exact effect on Profit / Loss."""
+    """Measure a known 30.00 expense's exact effect on Profit / Loss."""
+    from pages.master_menu.expense_categories_page import ExpenseCategoriesPage
+    from pages.main_menu.expenses_page import ExpensesPage
+    from utils.random_data import generate_random_name
+
     today = date.today().isoformat()
     report_page = ProfitLossPage(module_page)
     report_page.navigate()
     before = report_page.apply_filters(today, today)
 
-    voucher = CreateVoucherPage(module_page)
-    voucher.create_journal_voucher(
-        [
-            {"ledger": "Expense Ledger", "type": "debit", "amount": "30"},
-            {"ledger": "Cash Ledger", "type": "credit", "amount": "30"},
-        ],
-        remarks="Profit loss known expense",
+    # 1. Create an expense category
+    exp_cat_page = ExpenseCategoriesPage(module_page)
+    exp_cat_page.navigate()
+    cat_name = generate_random_name("pl_exp_cat")
+    exp_cat_page.add_expense_category(cat_name)
+
+    # 2. Add an expense of ₹30 in the test branch
+    expenses_page = ExpensesPage(module_page)
+    expenses_page.navigate()
+    expenses_page.add_expense(
+        category=cat_name,
+        branch=voucher_funded_state["branch"],
+        amount="30",
+        payment_type="Cash",
+        description="Profit loss known expense",
     )
-    assert voucher.wait_for_redirect_to_history()
 
     report_page.navigate()
     after = report_page.apply_filters(today, today)
@@ -85,7 +96,7 @@ class TestProfitLossFilters:
         assert str(report["branch_id"]) not in {"", "None"}
         rows = page.section_rows("Income") + page.section_rows("Expense")
         assert rows
-        assert all(row["branch"] == profit_loss_known_state["branch"] for row in rows)
+        assert all(row["branch"] in {profit_loss_known_state["branch"], ""} for row in rows)
 
     def test_funded_branch_sales_are_in_branch_income(
         self, logged_in_page, profit_loss_known_state

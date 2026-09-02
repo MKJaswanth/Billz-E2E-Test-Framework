@@ -155,9 +155,19 @@ class InventoriesPage:
     def clear_filters(self) -> None:
         self.expand_filters()
         try:
-            self.page.get_by_text("Clear Filters").click()
+            low_stock_cb = self.page.locator("input[name='low_stock_only']")
+            if low_stock_cb.count() > 0 and low_stock_cb.is_checked():
+                low_stock_cb.uncheck()
+            clear_btn = self.page.get_by_role("button", name=re.compile(r"Clear", re.I)).or_(self.page.get_by_text(re.compile(r"Clear Filter", re.I)))
+            if clear_btn.count() > 0 and clear_btn.first.is_visible():
+                clear_btn.first.click()
+            else:
+                filter_btn = self.page.get_by_role("button", name="Filter", exact=True)
+                if filter_btn.is_visible():
+                    filter_btn.click()
+            self.page.wait_for_load_state("networkidle", timeout=5000)
         except Exception:
-            pass
+            self.navigate()
 
     def is_table_empty(self) -> bool:
         try:
@@ -213,9 +223,9 @@ class InventoriesPage:
     def export_inventory_pdf(self, filter_type: str = "all") -> str | None:
         self.export_button.click()
 
-        self.page.get_by_text("Export Inventory").wait_for(
-            state="visible", timeout=5000
-        )
+        self.page.locator("div.modal-content, div[role='dialog']").get_by_text(
+            "Export Inventory", exact=True
+        ).first.wait_for(state="visible", timeout=5000)
 
         if filter_type != "all":
             stock_select = self.page.locator("input[name='stock']").locator("xpath=..").locator(".react-select__input-container")
@@ -236,4 +246,3 @@ class InventoriesPage:
 
         download = download_info.value
         return download.path()
-

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from playwright.sync_api import Page
+from playwright.sync_api import Locator, Page
 
-from utils.constants import BASE_URL
+from utils.constants import BASE_URL, LIST_TIMEOUT, UI_TIMEOUT
 
 PAYMENTS_URL = f"{BASE_URL}/payments"
 
@@ -26,12 +26,18 @@ class PaymentsPage:
     def navigate(self) -> None:
         self.page.goto(self.url)
         self.page.wait_for_load_state("networkidle")
+        loading_overlay = self.page.locator(".loading-state-modern--overlay").first
+        if loading_overlay.count() > 0:
+            try:
+                loading_overlay.wait_for(state="hidden", timeout=LIST_TIMEOUT)
+            except Exception:
+                pass
 
     def is_payments_visible(self) -> bool:
         """Verify the payments page loaded (title visible)."""
         try:
             self.page.get_by_text("Payments").first.wait_for(
-                state="visible", timeout=5000
+                state="visible", timeout=UI_TIMEOUT
             )
             return True
         except Exception:
@@ -43,7 +49,7 @@ class PaymentsPage:
         """Return the number of rows in the payments table."""
         try:
             self.page.locator("table tbody tr").first.wait_for(
-                state="visible", timeout=5000
+                state="visible", timeout=UI_TIMEOUT
             )
             return self.page.locator("table tbody tr").count()
         except Exception:
@@ -55,7 +61,7 @@ class PaymentsPage:
         Returns dict with keys: id, type, reference, status, amount.
         """
         row = self.page.locator("table tbody tr").first
-        row.wait_for(state="visible", timeout=5000)
+        row.wait_for(state="visible", timeout=UI_TIMEOUT)
         cells = row.locator("td").all()
 
         # Table columns: #, TYPE, REFERENCE, STATUS, AMOUNT (₹)
@@ -76,18 +82,33 @@ class PaymentsPage:
         except Exception:
             return True
 
+    @property
+    def search_input(self) -> Locator:
+        return self.page.get_by_placeholder("Search Payments...").or_(
+            self.page.get_by_placeholder("Search...")
+        ).or_(
+            self.page.locator("input[placeholder*='Search']")
+        ).first
+
     # ─── Search ────────────────────────────────────────────────────────────────
 
     def search_payment(self, query: str) -> bool:
         """Search payments by text."""
-        search_box = self.page.get_by_placeholder("Search Payments...")
-        search_box.fill(query)
-        search_box.press("Enter")
-        self.page.wait_for_load_state("networkidle", timeout=5000)
+        loading_overlay = self.page.locator(".loading-state-modern--overlay").first
+        if loading_overlay.count() > 0:
+            try:
+                loading_overlay.wait_for(state="hidden", timeout=LIST_TIMEOUT)
+            except Exception:
+                pass
+
+        self.search_input.wait_for(state="visible", timeout=UI_TIMEOUT)
+        self.search_input.fill(query)
+        self.search_input.press("Enter")
+        self.page.wait_for_load_state("networkidle", timeout=LIST_TIMEOUT)
         self.page.wait_for_timeout(1000)
         try:
             first_row = self.page.locator("table tbody tr").first
-            first_row.wait_for(state="visible", timeout=5000)
+            first_row.wait_for(state="visible", timeout=UI_TIMEOUT)
             text = first_row.text_content()
             return "No" not in text or "found" not in text
         except Exception:

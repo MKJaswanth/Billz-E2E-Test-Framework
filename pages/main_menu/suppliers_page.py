@@ -189,6 +189,9 @@ class SuppliersPage:
 
         if not city_name:
             cities_page = CitiesPage(self.page)
+            if hasattr(self, "url") and self.url:
+                base = self.url.split("/suppliers")[0]
+                cities_page.city_url = f"{base}/cities"
             cities_page.navigate()
             city_name = f"AutoCity_{generate_random_code('S')}"
             cities_page.add_city(city_name)
@@ -250,6 +253,9 @@ class SuppliersPage:
             return True
         except Exception:
             return False
+
+    def is_supplier_active(self, name: str) -> bool:
+        return self.search_supplier(name)
 
     def view_supplier(
         self,

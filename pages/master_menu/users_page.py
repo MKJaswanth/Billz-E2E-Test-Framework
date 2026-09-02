@@ -79,6 +79,23 @@ class UsersPage:
             has=self.page.get_by_text(user_name, exact=True)
         ).first
 
+    def _select_labeled_option(self, label: str, option_name: str) -> None:
+        """Select an option from a labeled React-Select component."""
+        dialog = self.user_dialog if self.user_dialog.is_visible() else self.page
+        field = dialog.locator("label").filter(
+            has_text=re.compile(rf"^{re.escape(label)}\s*\*?\s*$", re.I)
+        ).locator("xpath=..")
+        select_input = field.locator(".react-select__input-container, .react-select__control").first
+        select_input.wait_for(state="visible", timeout=UI_TIMEOUT)
+        select_input.click()
+        self.page.keyboard.type(option_name)
+        self.page.wait_for_timeout(300)
+        option = self.page.locator(".react-select__option, [id*='-option-']").filter(
+            has_text=option_name
+        ).or_(self.page.get_by_role("option", name=option_name, exact=False)).first
+        option.wait_for(state="visible", timeout=UI_TIMEOUT)
+        option.click()
+
     def navigate(self) -> None:
         with self.page.expect_response(
             self._is_list_response, timeout=LIST_TIMEOUT
@@ -118,15 +135,13 @@ class UsersPage:
         self.user_dialog.locator('input[name="email"]').fill(email)
         self.user_dialog.locator('input[name="password"]').fill(password)
 
-        branch_container = self.page.locator(".react-select__value-container.react-select__value-container--is-multi > .react-select__input-container")
-        branch_container.click()
-        self.page.keyboard.type(branch_name)
-        self.page.get_by_role("option", name=branch_name, exact=False).first.click()
+        self._select_labeled_option("Branches", branch_name)
+        self._select_labeled_option("Roles", role_name)
 
-        role_container = self.page.locator("div:nth-child(6) > .mb-3 > .css-b62m3t-container > .react-select__control > .react-select__value-container > .react-select__input-container")
-        role_container.click()
-        self.page.keyboard.type(role_name)
-        self.page.get_by_role("option", name=role_name, exact=False).first.click()
+        # Check at least one permission checkbox
+        checkbox = self.user_dialog.locator("input[type='checkbox']").first
+        if checkbox.count() > 0 and checkbox.is_visible():
+            checkbox.check()
 
         with self.page.expect_response(
             self._is_create_response, timeout=LIST_TIMEOUT
@@ -225,7 +240,7 @@ class UsersPage:
         if response_info.value.status not in (200, 204):
             return False
 
-        self.page.get_by_text("Deleted successfully.").wait_for(
+        self.page.get_by_text("Deleted successfully.").first.wait_for(
             state="visible", timeout=UI_TIMEOUT
         )
         return True
@@ -243,7 +258,7 @@ class UsersPage:
         if response_info.value.status not in (200, 204):
             return False
 
-        self.page.get_by_text("Retrieved successfully.").wait_for(
+        self.page.get_by_text("Retrieved successfully.").first.wait_for(
             state="visible", timeout=UI_TIMEOUT
         )
         return True
@@ -286,22 +301,8 @@ class UsersPage:
         self.page.locator('input[name="email"]').fill(email)
         self.page.locator('input[name="password"]').fill(password)
 
-        branch_container = self.page.locator(
-            ".react-select__value-container.react-select__value-container--is-multi "
-            "> .react-select__input-container"
-        )
-        branch_container.click()
-        self.page.keyboard.type(branch_name)
-        self.page.get_by_role("option", name=branch_name, exact=False).first.click()
-
-        role_container = self.page.locator(
-            "div:nth-child(6) > .mb-3 > .css-b62m3t-container "
-            "> .react-select__control > .react-select__value-container "
-            "> .react-select__input-container"
-        )
-        role_container.click()
-        self.page.keyboard.type(role_name)
-        self.page.get_by_role("option", name=role_name, exact=False).first.click()
+        self._select_labeled_option("Branches", branch_name)
+        self._select_labeled_option("Roles", role_name)
         self.page.get_by_role("button", name="Create").click()
 
         patterns = {
@@ -323,22 +324,8 @@ class UsersPage:
         self.page.locator('input[name="email"]').fill(email)
         self.page.locator('input[name="password"]').fill(password)
 
-        branch_container = self.page.locator(
-            ".react-select__value-container.react-select__value-container--is-multi "
-            "> .react-select__input-container"
-        )
-        branch_container.click()
-        self.page.keyboard.type(branch_name)
-        self.page.get_by_role("option", name=branch_name, exact=False).first.click()
-
-        role_container = self.page.locator(
-            "div:nth-child(6) > .mb-3 > .css-b62m3t-container "
-            "> .react-select__control > .react-select__value-container "
-            "> .react-select__input-container"
-        )
-        role_container.click()
-        self.page.keyboard.type(role_name)
-        self.page.get_by_role("option", name=role_name, exact=False).first.click()
+        self._select_labeled_option("Branches", branch_name)
+        self._select_labeled_option("Roles", role_name)
         self.page.get_by_role("button", name="Create").click()
 
         return has_validation_feedback(

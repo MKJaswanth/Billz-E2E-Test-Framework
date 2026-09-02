@@ -71,7 +71,12 @@ class BranchesPage:
             or header.locator("button, [role='button'], [data-sort], .sort-icon").count() > 0
         )
     
-    def add_branch(self, city_name: str | None = None) -> str:
+    def add_branch(
+        self,
+        city_name: str | None = None,
+        name: str | None = None,
+        code: str | None = None,
+    ) -> str:
         from pages.master_menu.cities_page import CitiesPage
         from utils.random_data import generate_random_code
         
@@ -85,10 +90,11 @@ class BranchesPage:
         # 2. Go back to branches page and add branch
         self.navigate()
         
-        branch_name = generate_random_name()
+        branch_name = name or generate_random_name("Branch")
+        branch_code = code or generate_random_code("BR")
         self.page.get_by_role("button", name="Add Branch").click()
         self.page.locator("input[name=\"name\"]").fill(branch_name)
-        self.page.locator("input[name=\"code\"]").fill(generate_random_code())
+        self.page.locator("input[name=\"code\"]").fill(branch_code)
         self.page.locator("input[name=\"address\"]").fill(generate_random_address())
         
         self.page.locator("input[name='state_id']").locator("xpath=..").locator(".react-select__input-container").click()

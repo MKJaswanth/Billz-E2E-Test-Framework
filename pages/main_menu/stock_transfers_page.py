@@ -47,10 +47,10 @@ class StockTransfersPage:
         source_ctrl = self.page.locator("input[name='source_branch_id']").locator("xpath=..").locator(".react-select__control, .react-select__input-container").first
         source_ctrl.click()
         self.page.wait_for_timeout(300)
-        self.page.keyboard.type(source_branch[:12], delay=30)
+        self.page.keyboard.type(source_branch, delay=20)
         self.page.wait_for_timeout(500)
         try:
-            self.page.get_by_role("option", name=source_branch).first.click(timeout=5000)
+            self.page.get_by_role("option", name=source_branch, exact=False).first.click(timeout=5000)
         except Exception:
             self.page.locator(".react-select__option").filter(has_text=source_branch).first.click()
         self.page.wait_for_timeout(500)
@@ -59,10 +59,10 @@ class StockTransfersPage:
         dest_ctrl = self.page.locator("input[name='destination_branch_id']").locator("xpath=..").locator(".react-select__control, .react-select__input-container").first
         dest_ctrl.click()
         self.page.wait_for_timeout(300)
-        self.page.keyboard.type(destination_branch[:12], delay=30)
+        self.page.keyboard.type(destination_branch, delay=20)
         self.page.wait_for_timeout(500)
         try:
-            self.page.get_by_role("option", name=destination_branch).first.click(timeout=5000)
+            self.page.get_by_role("option", name=destination_branch, exact=False).first.click(timeout=5000)
         except Exception:
             self.page.locator(".react-select__option").filter(has_text=destination_branch).first.click()
         self.page.wait_for_timeout(500)
@@ -82,10 +82,10 @@ class StockTransfersPage:
             prod_ctrl = self.page.locator(f"input[name='items.{i}.product_selector']").locator("xpath=..").locator(".react-select__control, .react-select__input-container").first
             prod_ctrl.click()
             self.page.wait_for_timeout(300)
-            self.page.keyboard.type(str(item["product"])[:12], delay=30)
+            self.page.keyboard.type(str(item["product"]), delay=20)
             self.page.wait_for_timeout(500)
             try:
-                self.page.get_by_role("option", name=str(item["product"])).first.click(timeout=5000)
+                self.page.get_by_role("option", name=str(item["product"]), exact=False).first.click(timeout=5000)
             except Exception:
                 self.page.locator(".react-select__option").filter(has_text=str(item["product"])).first.click()
             self.page.wait_for_timeout(500)
@@ -273,20 +273,28 @@ class StockTransfersPage:
     def filter_by_source_branch(self, branch_name: str) -> None:
         """Apply source branch filter."""
         self.expand_filters()
-        self.page.locator("input[name='source_branch_id']").locator(
+        container = self.page.locator("input[name='source_branch_id']").locator(
             "xpath=.."
-        ).locator(".react-select__input-container").click()
-        self.page.get_by_role("option", name=branch_name).click()
+        ).locator(".react-select__input-container")
+        container.click()
+        self.page.wait_for_timeout(200)
+        self.page.keyboard.type(branch_name, delay=20)
+        self.page.wait_for_timeout(300)
+        self.page.get_by_role("option", name=branch_name, exact=False).first.click()
         self.page.get_by_role("button", name="Filter", exact=True).click()
         self.page.wait_for_load_state("networkidle", timeout=5000)
 
     def filter_by_destination_branch(self, branch_name: str) -> None:
         """Apply destination branch filter."""
         self.expand_filters()
-        self.page.locator("input[name='destination_branch_id']").locator(
+        container = self.page.locator("input[name='destination_branch_id']").locator(
             "xpath=.."
-        ).locator(".react-select__input-container").click()
-        self.page.get_by_role("option", name=branch_name).click()
+        ).locator(".react-select__input-container")
+        container.click()
+        self.page.wait_for_timeout(200)
+        self.page.keyboard.type(branch_name, delay=20)
+        self.page.wait_for_timeout(300)
+        self.page.get_by_role("option", name=branch_name, exact=False).first.click()
         self.page.get_by_role("button", name="Filter", exact=True).click()
         self.page.wait_for_load_state("networkidle", timeout=5000)
 

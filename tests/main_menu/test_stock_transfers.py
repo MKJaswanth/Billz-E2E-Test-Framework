@@ -114,11 +114,11 @@ def module_city(module_page):
 
 
 @pytest.fixture(scope="module")
-def module_source_branch(module_page):
+def module_source_branch(module_page ):
     """Source branch — stock will be transferred FROM here."""
     branches_page = BranchesPage(module_page)
     branches_page.navigate()
-    branch_name = branches_page.add_branch()
+    branch_name = branches_page.add_branch(name=generate_random_name("st_src_br"))
     branches_page.page.get_by_text("Branch created successfully.").wait_for(
         state="visible", timeout=5000
     )
@@ -136,7 +136,7 @@ def module_destination_branch(module_page):
     """Destination branch — stock will be transferred TO here."""
     branches_page = BranchesPage(module_page)
     branches_page.navigate()
-    branch_name = branches_page.add_branch()
+    branch_name = branches_page.add_branch(name=generate_random_name("st_dst_br"))
     branches_page.page.get_by_text("Branch created successfully.").wait_for(
         state="visible", timeout=5000
     )

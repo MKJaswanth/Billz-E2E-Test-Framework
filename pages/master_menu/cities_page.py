@@ -29,6 +29,7 @@ CREATED_TOAST = re.compile(r"city created successfully", re.IGNORECASE)
 class CitiesPage:
     def __init__(self, page: Page) -> None:
         self.page = page
+        self.city_url = CITY_URL
         self._list_api_url: str | None = None
         self._list_headers: dict[str, str] = {}
 
@@ -68,7 +69,7 @@ class CitiesPage:
         with self.page.expect_response(
             self._is_list_response, timeout=LIST_TIMEOUT
         ) as response_info:
-            self.page.goto(CITY_URL)
+            self.page.goto(self.city_url)
         response = response_info.value
         parts = urlsplit(response.url)
         self._list_api_url = urlunsplit(
@@ -88,7 +89,7 @@ class CitiesPage:
             for name, value in response.request.all_headers().items()
             if name.lower() in allowed_headers
         }
-        ui_parts = urlsplit(CITY_URL)
+        ui_parts = urlsplit(self.city_url)
         origin = f"{ui_parts.scheme}://{ui_parts.netloc}"
         self._list_headers["Origin"] = origin
         self._list_headers["Referer"] = f"{origin}/"

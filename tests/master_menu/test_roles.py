@@ -93,6 +93,7 @@ def test_role_crud_lifecycle(logged_in_page, role_cleanup):
 
     # 7. Retrieve Soft-Deleted Role
     assert roles_page.retrieve_role(new_role_name), f"Role {new_role_name} should be retrieved"
+    assert roles_page.delete_role(new_role_name), f"Role {new_role_name} should be cleaned up"
 
 
 def test_role_required_fields(logged_in_page):

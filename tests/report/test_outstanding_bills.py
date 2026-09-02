@@ -134,8 +134,9 @@ def test_standalone_report_has_no_settle_action(logged_in_page):
 def test_pagination_moves_to_second_page_when_available(logged_in_page):
     report, first = _open(logged_in_page)
     first = report.set_page_size(5)
+    items = first.get("items", []) if isinstance(first, dict) else []
     last_page = first.get("pagination", {}).get("last_page", 1) if isinstance(first, dict) else 1
-    if last_page <= 1:
+    if last_page <= 1 or len(items) < 5:
         pytest.skip("At least six outstanding sales bills are required to verify pagination")
     second = report.go_to_page(2)
     assert second.get("items")

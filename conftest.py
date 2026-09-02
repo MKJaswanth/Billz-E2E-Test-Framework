@@ -242,18 +242,9 @@ def funded_bank_account(browser, auth_state):
 
 @pytest.fixture(autouse=True)
 def auto_test_banner(request):
-    """Automatically adds a test name banner to the browser in headed mode,
-    or integrates with the playback overlay if active.
-    Only runs when --headed or --playback is set.
-    """
-    is_headed = False
-    try:
-        is_headed = request.config.getoption("--headed")
-    except Exception:
-        pass
-    
+    """Integrates with playback overlay if active (--playback)."""
     playback_enabled = getattr(request.config, "_playback_enabled", False)
-    if not is_headed and not playback_enabled:
+    if not playback_enabled:
         return
 
     # Only run for tests that request a page fixture
@@ -274,52 +265,10 @@ def auto_test_banner(request):
     test_name = request.node.name
     display_name = test_name.replace("test_", "").replace("_", " ").title()
 
-    # If playback is enabled, update playback and trigger an update immediately
-    if playback_enabled:
-        try:
-            from utils.playback import playback
-            playback.test_name = f"Running: {display_name}"
-            playback._update(page)
-        except Exception:
-            pass
-        return
-
-    # Headed mode: inject the yellow banner
-    script = f"""
-    (() => {{
-        const showBanner = () => {{
-            if (document.getElementById('playwright-test-banner')) return;
-            const banner = document.createElement('div');
-            banner.id = 'playwright-test-banner';
-            banner.innerText = 'Running: {display_name}';
-            banner.style.position = 'fixed';
-            banner.style.top = '0';
-            banner.style.left = '0';
-            banner.style.width = '100%';
-            banner.style.backgroundColor = '#ffeb3b';
-            banner.style.color = '#000000';
-            banner.style.zIndex = '999999';
-            banner.style.fontSize = '14px';
-            banner.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-            banner.style.fontWeight = 'bold';
-            banner.style.padding = '8px';
-            banner.style.textAlign = 'center';
-            banner.style.borderBottom = '2px solid #fbc02d';
-            banner.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-            banner.style.pointerEvents = 'none';
-            document.body.appendChild(banner);
-        }};
-        if (document.body) {{
-            showBanner();
-        }} else {{
-            document.addEventListener('DOMContentLoaded', showBanner);
-        }}
-    }})();
-    """
     try:
-        page.context.add_init_script(script)
-        if page.url != "about:blank":
-            page.evaluate(script)
+        from utils.playback import playback
+        playback.test_name = f"Running: {display_name}"
+        playback._update(page)
     except Exception:
         pass
 

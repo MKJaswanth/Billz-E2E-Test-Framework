@@ -26,7 +26,7 @@ class TestContraVoucher:
         page = CreateVoucherPage(logged_in_page)
         page.navigate_contra()
 
-        page.create_contra_preset("cash_to_bank", "50", remarks="Cash to bank test")
+        page.create_contra_preset("cash_to_bank", "10", remarks="Cash to bank test")
 
         assert page.wait_for_redirect_to_history(), (
             "Contra voucher (cash_to_bank) did not redirect to history"
@@ -37,7 +37,14 @@ class TestContraVoucher:
         page = CreateVoucherPage(logged_in_page)
         page.navigate_contra()
 
-        page.create_contra_preset("bank_to_cash", "50", remarks="Bank to cash test")
+        page.create_contra_preset(
+            "bank_to_cash",
+            "50",
+            remarks="Bank to cash test",
+            credit_ledger=voucher_funded_state["bank"],
+            debit_ledger="Cash Ledger",
+            branch=voucher_funded_state["branch"],
+        )
 
         assert page.wait_for_redirect_to_history(), (
             "Contra voucher (bank_to_cash) did not redirect to history"
@@ -76,6 +83,7 @@ class TestContraVoucher:
             credit_ledger="Cash Ledger",
             amount="30",
             remarks="Custom contra transfer",
+            branch=voucher_funded_state["branch"],
         )
 
         assert page.wait_for_redirect_to_history(), (
@@ -161,11 +169,11 @@ class TestJournalVoucher:
         """Create a balanced journal voucher (total DR == total CR)."""
         page = CreateVoucherPage(logged_in_page)
 
-        bank_name = voucher_funded_state["bank"]
+        customer_name = voucher_funded_state.get("customer", "")
         page.create_journal_voucher(
             entries=[
-                {"ledger": "Cash Ledger", "type": "debit", "amount": "100"},
-                {"ledger": bank_name, "type": "credit", "amount": "100"},
+                {"ledger": "Sales Account", "type": "debit", "amount": "100"},
+                {"ledger": customer_name or "Discount", "type": "credit", "amount": "100"},
             ],
             remarks="Balanced journal entry test",
         )
@@ -185,13 +193,13 @@ class TestJournalVoucher:
         page.select_voucher_type("Journal")
         page.page.wait_for_timeout(500)
 
-        bank_name = voucher_funded_state["bank"]
+        customer_name = voucher_funded_state.get("customer", "")
 
         # Fill first line: DR 200
-        page._fill_journal_line(0, "Cash Ledger", "debit", "200")
+        page._fill_journal_line(0, "Sales Account", "debit", "200")
 
         # Fill the second default line: CR 100 (unbalanced - 200 != 100)
-        page._fill_journal_line(1, bank_name, "credit", "100")
+        page._fill_journal_line(1, customer_name or "Discount", "credit", "100")
 
         assert page.is_unbalanced_error_visible()
         assert not page.is_submit_enabled(), "Unbalanced journal must disable submit"

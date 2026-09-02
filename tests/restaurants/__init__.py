@@ -1,1 +1,0 @@
-# Restaurants vertical tests package

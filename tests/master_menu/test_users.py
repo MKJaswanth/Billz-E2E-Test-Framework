@@ -96,6 +96,7 @@ def test_user_crud_lifecycle(
     ), "Edited User fields should persist in View"
     assert users_page.delete_user(new_name)
     assert users_page.retrieve_user(new_name)
+    assert users_page.delete_user(new_name)
 
 
 def test_validate_user_fields(logged_in_page):
